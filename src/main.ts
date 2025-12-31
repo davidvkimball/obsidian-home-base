@@ -1,99 +1,170 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+/**
+ * Home Base Plugin
+ * Your dedicated home in your vault
+ */
 
-// Remember to rename these classes and interfaces!
+import { Notice, Plugin, addIcon } from 'obsidian';
+import { DEFAULT_SETTINGS, HomeBaseSettings } from './settings';
+import { HomeBaseSettingTab } from './ui/settings-tab';
+import { HomeBaseService } from './services/home-service';
+import { NewTabService } from './services/new-tab-service';
+import { StickyTabService } from './services/sticky-tab-service';
+import { MobileButtonService } from './services/mobile-button-service';
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+/**
+ * Custom home icon SVG (Lucide house icon)
+ */
+const HOME_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
 
-	async onload() {
+export default class HomeBasePlugin extends Plugin {
+	settings!: HomeBaseSettings;
+	
+	// Services
+	homeService!: HomeBaseService;
+	newTabService!: NewTabService;
+	stickyTabService!: StickyTabService;
+	mobileButtonService!: MobileButtonService;
+
+	async onload(): Promise<void> {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
+		// Register custom icon
+		addIcon('home-base', HOME_ICON);
+
+		// Initialize services
+		this.homeService = new HomeBaseService(this);
+		this.newTabService = new NewTabService(this);
+		this.stickyTabService = new StickyTabService(this);
+		this.mobileButtonService = new MobileButtonService(this);
+
+		// Add ribbon icon
+		this.addRibbonIcon('home', 'Open home base', () => {
+			void this.homeService.openHomeBase({
+				replaceActiveLeaf: false,
+				runCommand: true,
+			});
 		});
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
+		// Register commands
+		this.registerCommands();
 
-		// This adds a simple command that can be triggered anywhere
+		// Add settings tab
+		this.addSettingTab(new HomeBaseSettingTab(this.app, this));
+
+		// Wait for layout to be ready
+		this.app.workspace.onLayoutReady(() => {
+			// Initialize new tab service (handles startup)
+			this.newTabService.initialize();
+
+			// Update UI features
+			this.updateStickyTabIcon();
+			this.updateMobileButton();
+		});
+
+		// Register layout change handler
+		this.registerEvent(
+			this.app.workspace.on('layout-change', () => {
+				this.newTabService.handleLayoutChange();
+				this.stickyTabService.updateActiveState();
+			})
+		);
+
+		// Register file open handler for active state updates
+		this.registerEvent(
+			this.app.workspace.on('file-open', () => {
+				this.stickyTabService.updateActiveState();
+			})
+		);
+
+		console.debug('Home Base plugin loaded');
+	}
+
+	onunload(): void {
+		// Clean up services
+		this.stickyTabService.remove();
+		this.mobileButtonService.remove();
+
+		console.debug('Home Base plugin unloaded');
+	}
+
+	/**
+	 * Register plugin commands
+	 */
+	private registerCommands(): void {
+		// Open home base
 		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
+			id: 'open',
+			name: 'Open',
 			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
+				if (!this.settings.homeBasePath) {
+					new Notice('No home base file configured. Set one in settings.');
+					return;
 				}
-				return false;
-			}
+				void this.homeService.openHomeBase({
+					replaceActiveLeaf: false,
+					runCommand: true,
+				});
+			},
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
+		// Set current file as home base
+		this.addCommand({
+			id: 'set-current-file',
+			name: 'Set current file as home',
+			checkCallback: (checking) => {
+				if (!this.homeService.canSetActiveFileAsHomeBase()) {
+					return false;
+				}
+				if (!checking) {
+					void this.homeService.setActiveFileAsHomeBase().then((success) => {
+						if (success) {
+							const activeFile = this.app.workspace.getActiveFile();
+							new Notice(`Home base set to "${activeFile?.name}"`);
+						}
+					});
+				}
+				return true;
+			},
 		});
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
+		// Toggle sticky home icon
+		this.addCommand({
+			id: 'toggle-sticky-icon',
+			name: 'Toggle sticky home icon',
+			callback: async () => {
+				await this.stickyTabService.toggle();
+				const state = this.settings.showStickyHomeIcon ? 'enabled' : 'disabled';
+				new Notice(`Sticky home icon ${state}`);
+			},
+		});
 	}
 
-	onunload() {
+	/**
+	 * Load plugin settings
+	 */
+	async loadSettings(): Promise<void> {
+		const data = (await this.loadData()) as Partial<HomeBaseSettings> | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
 	}
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
-	}
-
-	async saveSettings() {
+	/**
+	 * Save plugin settings
+	 */
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	/**
+	 * Update the sticky tab icon based on current settings
+	 */
+	updateStickyTabIcon(): void {
+		this.stickyTabService.update();
 	}
 
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+	/**
+	 * Update the mobile button based on current settings
+	 */
+	updateMobileButton(): void {
+		this.mobileButtonService.update();
 	}
 }

@@ -10,27 +10,86 @@ This file serves as the **project-specific entry point** for AI agents working o
 
 <!--
 Source: Project-specific (not synced from reference repos)
-Last updated: [Maintain manually - this file is project-specific]
+Last updated: 2025-12-30
 Applicability: Plugin
 -->
 
 ### Project Overview
 
-- **Architecture**: Organized structure - main code in `src/main.ts` and settings in `src/settings.ts`
+- **Plugin Name**: Home Base
+- **Description**: Your dedicated home in your vault - opens a designated "home base" file on startup and via a sticky tab icon
+- **Architecture**: Service-based structure with core logic in services, UI components separated
+- **Supported File Types**: `.md`, `.mdx`, `.canvas`, `.base`
 
 ### Important Project-Specific Details
 
+- **Smart Startup Detection**: Plugin checks if home base is already the focused tab on startup - if so, it does nothing (no reload)
+- **New Tab Behavior**: Like new-tab-default-page - opens home base only when no tabs are open (default), with toggle for "always replace"
+- **MDX Support**: Uses manual frontmatter parsing since Obsidian's metadataCache only works for .md files
+- **SettingGroup Compatibility**: Uses backward-compatible utility for Obsidian 1.11.0+ SettingGroup API
+- **View Mode**: Only applies to md/mdx files; canvas/base use their native views
+
 ### Maintenance Tasks
+
+- Keep settings-compat.ts in sync with .agents/code-patterns.md patterns
+- Update MDX utilities if Obsidian adds native MDX support
 
 ### Project-Specific Conventions
 
+- Service classes should be instantiated in main.ts and passed the plugin instance
+- UI components in `src/ui/` folder
+- Utilities in `src/utils/` folder
+- Services in `src/services/` folder
+
 ### Project-Specific References
+
+Located in `.ref/plugins/`:
+
+**Local Plugins** (symlinks to sibling projects):
+- `obsidian-property-over-filename` - TabService patterns, settings-compat utility
+- `obsidian-bases-cms` - MDX frontmatter utilities, view registration patterns
+- `obsidian-alias-filename-history` - Settings compatibility patterns
+
+**External Plugins** (cloned to global .ref):
+- `obsidian-homepage` - Startup behavior, command execution, ribbon icon patterns
+- `new-tab-default-page` - New tab replacement logic, layout-change detection
 
 ### Overrides (Optional)
 
+- None currently
+
 ### Key Files and Their Purposes
 
+```
+src/
+  main.ts                    # Plugin entry point, registers services and commands
+  settings.ts                # Settings interface and defaults
+  ui/
+    settings-tab.ts          # Settings tab with grouped settings (SettingGroup compat)
+    file-suggest.ts          # File path suggester component
+  services/
+    home-service.ts          # Core home base opening logic
+    sticky-tab-service.ts    # Sticky tab icon management
+  utils/
+    settings-compat.ts       # SettingGroup backward compatibility
+    mdx-frontmatter.ts       # MDX file support
+    file-utils.ts            # File type detection utilities
+styles.css                   # Sticky icon and mobile button styles
+```
+
 ### Development Notes
+
+- Reference `obsidian-homepage` for:
+  - Patching `runOpeningBehavior` for startup
+  - Command execution after opening
+  - Detecting URL params to skip homepage
+  - Ribbon icon with custom SVG
+
+- Reference `new-tab-default-page` for:
+  - WeakSet pattern for tracking existing leaves
+  - `layout-change` event for detecting new tabs
+  - Checking if leaf view type is "empty"
+  - Setting view mode after opening file
 
 ---
 

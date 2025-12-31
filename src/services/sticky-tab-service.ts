@@ -12,9 +12,17 @@ import type HomeBasePlugin from '../main';
 const STICKY_ICON_CLASS = 'home-base-sticky-icon';
 const STICKY_ICON_ACTIVE_CLASS = 'home-base-sticky-icon-active';
 
+/**
+ * Extended HTMLElement interface for sticky icon with custom properties
+ */
+interface StickyIconElement extends HTMLElement {
+	_checkInterval?: ReturnType<typeof setInterval>;
+	_containerObserver?: MutationObserver;
+}
+
 export class StickyTabService {
 	private plugin: HomeBasePlugin;
-	private stickyIconEl: HTMLElement | null = null;
+	private stickyIconEl: StickyIconElement | null = null;
 	private layoutChangeHandler: (() => void) | null = null;
 
 	constructor(plugin: HomeBasePlugin) {
@@ -105,7 +113,7 @@ export class StickyTabService {
 		}, 100); // Check every 100ms - more frequent to catch container recreation immediately
 
 		// Store interval so we can clear it later
-		(this.stickyIconEl as any)._checkInterval = checkInterval;
+		this.stickyIconEl._checkInterval = checkInterval;
 
 		// Also check on layout changes - but do it immediately, no delay
 		if (!this.layoutChangeHandler) {
@@ -147,7 +155,7 @@ export class StickyTabService {
 			});
 
 			// Store observer so we can clean it up
-			(this.stickyIconEl as any)._containerObserver = containerObserver;
+			this.stickyIconEl._containerObserver = containerObserver;
 		}
 	}
 
@@ -156,13 +164,13 @@ export class StickyTabService {
 	 */
 	remove(): void {
 		// Clear any check intervals
-		if (this.stickyIconEl && (this.stickyIconEl as any)._checkInterval) {
-			clearInterval((this.stickyIconEl as any)._checkInterval);
+		if (this.stickyIconEl && this.stickyIconEl._checkInterval) {
+			clearInterval(this.stickyIconEl._checkInterval);
 		}
 
 		// Disconnect container observer
-		if (this.stickyIconEl && (this.stickyIconEl as any)._containerObserver) {
-			(this.stickyIconEl as any)._containerObserver.disconnect();
+		if (this.stickyIconEl && this.stickyIconEl._containerObserver) {
+			this.stickyIconEl._containerObserver.disconnect();
 		}
 
 		if (this.stickyIconEl) {
@@ -175,11 +183,12 @@ export class StickyTabService {
 
 		// Also clean up any orphaned icons
 		document.querySelectorAll(`.${STICKY_ICON_CLASS}`).forEach(el => {
-			if ((el as any)._checkInterval) {
-				clearInterval((el as any)._checkInterval);
+			const stickyEl = el as StickyIconElement;
+			if (stickyEl._checkInterval) {
+				clearInterval(stickyEl._checkInterval);
 			}
-			if ((el as any)._containerObserver) {
-				(el as any)._containerObserver.disconnect();
+			if (stickyEl._containerObserver) {
+				stickyEl._containerObserver.disconnect();
 			}
 			el.remove();
 		});

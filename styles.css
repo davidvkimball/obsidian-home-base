@@ -24,7 +24,7 @@
 	/* Position absolutely relative to workspace-tabs container */
 	position: absolute;
 	left: 4px; /* Position from left edge, accounting for container padding */
-	top: 0; /* Align with top of tab bar */
+	top: 4px; /* Align with tab bar with proper spacing */
 	z-index: 10; /* Above tabs but not too high */
 	/* Prevent any layout shifts or animations */
 	will-change: auto;
@@ -32,6 +32,11 @@
 	pointer-events: auto; /* Ensure it's clickable */
 	/* Isolate from any parent transforms or animations */
 	isolation: isolate;
+	/* Prevent any visual changes during tab operations */
+	opacity: 1 !important;
+	visibility: visible !important;
+	/* Prevent any transitions that might cause flickering */
+	transition: color 150ms ease, opacity 0s, visibility 0s;
 }
 
 /* Ensure workspace-tabs has relative positioning for absolute child */

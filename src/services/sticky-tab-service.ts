@@ -102,25 +102,52 @@ export class StickyTabService {
 				return;
 			}
 			ensureIconInPlace();
-		}, 300); // Check every 300ms - frequent enough to catch issues, slow enough to not cause problems
+		}, 100); // Check every 100ms - more frequent to catch container recreation immediately
 
 		// Store interval so we can clear it later
 		(this.stickyIconEl as any)._checkInterval = checkInterval;
 
-		// Also check on layout changes
+		// Also check on layout changes - but do it immediately, no delay
 		if (!this.layoutChangeHandler) {
 			this.layoutChangeHandler = () => {
 				if (this.stickyIconEl && this.plugin.settings.showStickyHomeIcon) {
-					// Use a small delay to let layout settle
-					setTimeout(() => {
-						ensureIconInPlace();
-					}, 50);
+					// Check immediately - don't wait for layout to settle
+					// This prevents flickering when tabs close
+					ensureIconInPlace();
 				}
 			};
 
 			this.plugin.registerEvent(
 				this.plugin.app.workspace.on('layout-change', this.layoutChangeHandler)
 			);
+		}
+
+		// Also watch for when workspace-tabs container is added back (after all tabs closed)
+		// Use a MutationObserver on the workspace split to catch container recreation
+		const mainWorkspace = document.querySelector('.workspace-split.mod-vertical.mod-root');
+		if (mainWorkspace) {
+			const containerObserver = new MutationObserver(() => {
+				if (!this.stickyIconEl || !this.plugin.settings.showStickyHomeIcon) return;
+				
+				// Check if workspace-tabs container exists and icon is missing
+				const workspaceTabs = mainWorkspace.querySelector('.workspace-tabs');
+				if (workspaceTabs) {
+					const existingIcon = workspaceTabs.querySelector(`.${STICKY_ICON_CLASS}`);
+					if (!existingIcon || existingIcon !== this.stickyIconEl) {
+						// Container exists but icon is missing - re-insert immediately
+						workspaceTabs.appendChild(this.stickyIconEl);
+						this.updateActiveState();
+					}
+				}
+			});
+
+			containerObserver.observe(mainWorkspace, {
+				childList: true,
+				subtree: false, // Only watch direct children
+			});
+
+			// Store observer so we can clean it up
+			(this.stickyIconEl as any)._containerObserver = containerObserver;
 		}
 	}
 
@@ -131,6 +158,11 @@ export class StickyTabService {
 		// Clear any check intervals
 		if (this.stickyIconEl && (this.stickyIconEl as any)._checkInterval) {
 			clearInterval((this.stickyIconEl as any)._checkInterval);
+		}
+
+		// Disconnect container observer
+		if (this.stickyIconEl && (this.stickyIconEl as any)._containerObserver) {
+			(this.stickyIconEl as any)._containerObserver.disconnect();
 		}
 
 		if (this.stickyIconEl) {
@@ -145,6 +177,9 @@ export class StickyTabService {
 		document.querySelectorAll(`.${STICKY_ICON_CLASS}`).forEach(el => {
 			if ((el as any)._checkInterval) {
 				clearInterval((el as any)._checkInterval);
+			}
+			if ((el as any)._containerObserver) {
+				(el as any)._containerObserver.disconnect();
 			}
 			el.remove();
 		});

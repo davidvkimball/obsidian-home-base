@@ -19,6 +19,7 @@ export interface HomeBaseSettings {
 	// UI Features (off by default)
 	showStickyHomeIcon: boolean;
 	stickyIconReplaceTab: boolean;
+	hideHomeTabHeader: boolean;
 	replaceMobileNewTab: boolean;
 
 	// Automation
@@ -39,6 +40,7 @@ export const DEFAULT_SETTINGS: HomeBaseSettings = {
 	// UI Features
 	showStickyHomeIcon: false,
 	stickyIconReplaceTab: false,
+	hideHomeTabHeader: false,
 	replaceMobileNewTab: false,
 
 	// Automation

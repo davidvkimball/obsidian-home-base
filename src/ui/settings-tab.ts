@@ -188,6 +188,21 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							});
 					});
 			});
+
+			uiGroup.addSetting((setting) => {
+				setting
+					.setName('Hide tab header')
+					.setDesc('Hide the home base tab header when it\'s open, using the sticky icon as the tab indicator')
+					.addToggle((toggle) => {
+						toggle
+							.setValue(this.plugin.settings.hideHomeTabHeader)
+							.onChange(async (value) => {
+								this.plugin.settings.hideHomeTabHeader = value;
+								await this.plugin.saveSettings();
+								this.plugin.stickyTabService.updateTabHeaders();
+							});
+					});
+			});
 		}
 
 		uiGroup.addSetting((setting) => {

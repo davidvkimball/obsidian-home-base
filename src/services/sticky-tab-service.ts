@@ -304,9 +304,9 @@ export class StickyTabService {
 	 * Internal method that actually updates the tab headers
 	 */
 	private _doUpdateTabHeaders(): void {
-		// Only hide tabs if sticky icon is enabled
-		if (!this.plugin.settings.showStickyHomeIcon) {
-			// Remove all home base tab classes if sticky icon is disabled
+		// Only hide tabs if BOTH sticky icon AND hide tab header are enabled
+		if (!this.plugin.settings.showStickyHomeIcon || !this.plugin.settings.hideHomeTabHeader) {
+			// Remove all home base tab classes if either setting is disabled
 			document.querySelectorAll('.is-home-base-tab').forEach(el => {
 				el.classList.remove('is-home-base-tab');
 			});

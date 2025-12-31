@@ -68,23 +68,32 @@ export default class HomeBasePlugin extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on('layout-change', () => {
 				this.newTabService.handleLayoutChange();
-				this.stickyTabService.updateActiveState();
-				this.stickyTabService.updateTabHeaders();
+				// Delay tab header updates to avoid flickering during tab transitions
+				setTimeout(() => {
+					this.stickyTabService.updateActiveState();
+					this.stickyTabService.updateTabHeaders();
+				}, 150);
 			})
 		);
 
 		// Register file open handler for active state updates
 		this.registerEvent(
 			this.app.workspace.on('file-open', () => {
-				this.stickyTabService.updateActiveState();
-				this.stickyTabService.updateTabHeaders();
+				// Delay updates to let file open animation complete
+				setTimeout(() => {
+					this.stickyTabService.updateActiveState();
+					this.stickyTabService.updateTabHeaders();
+				}, 100);
 			})
 		);
 
 		// Register active leaf change handler for tab header updates
 		this.registerEvent(
 			this.app.workspace.on('active-leaf-change', () => {
-				this.stickyTabService.updateTabHeaders();
+				// Delay to let tab switch animation complete
+				setTimeout(() => {
+					this.stickyTabService.updateTabHeaders();
+				}, 100);
 			})
 		);
 

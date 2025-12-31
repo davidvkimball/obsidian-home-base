@@ -44,8 +44,8 @@
 	position: relative;
 }
 
-/* Add padding to tab container inner to make space for the icon */
-.workspace-split.mod-vertical.mod-root .workspace-tab-header-container-inner {
+/* Add padding to tab container inner to make space for the icon - ONLY when sticky icon is enabled */
+.workspace-split.mod-vertical.mod-root.home-base-sticky-icon-enabled .workspace-tab-header-container-inner {
 	padding-left: 32px; /* Space for icon (24px) + margin (8px) */
 }
 

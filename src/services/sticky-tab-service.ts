@@ -25,6 +25,7 @@ export class StickyTabService {
 	private plugin: HomeBasePlugin;
 	private stickyIconEl: StickyIconElement | null = null;
 	private layoutChangeHandler: (() => void) | null = null;
+	private tabHeaderUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	constructor(plugin: HomeBasePlugin) {
 		this.plugin = plugin;
@@ -38,14 +39,31 @@ export class StickyTabService {
 		if (Platform.isMobile) {
 			this.remove();
 			this.updateTabHeaders(); // Clean up tab headers
+			this.updateWorkspaceClass(false);
 			return;
 		}
 
 		if (this.plugin.settings.showStickyHomeIcon) {
 			this.create();
+			this.updateWorkspaceClass(true);
 		} else {
 			this.remove();
 			this.updateTabHeaders(); // Clean up tab headers when removing icon
+			this.updateWorkspaceClass(false);
+		}
+	}
+
+	/**
+	 * Add/remove CSS class on workspace to conditionally apply styles
+	 */
+	private updateWorkspaceClass(enabled: boolean): void {
+		const mainWorkspace = document.querySelector('.workspace-split.mod-vertical.mod-root');
+		if (!mainWorkspace) return;
+
+		if (enabled) {
+			mainWorkspace.classList.add('home-base-sticky-icon-enabled');
+		} else {
+			mainWorkspace.classList.remove('home-base-sticky-icon-enabled');
 		}
 	}
 
@@ -69,9 +87,16 @@ export class StickyTabService {
 		this.stickyIconEl.addEventListener('click', (e) => {
 			e.preventDefault();
 			e.stopPropagation();
+			
+			// Open home base and update tab headers after opening
 			void this.plugin.homeService.openHomeBase({
 				replaceActiveLeaf: this.plugin.settings.stickyIconReplaceTab,
 				runCommand: true,
+			}).then(() => {
+				// Update tab headers after opening, with a slight delay to let animations complete
+				setTimeout(() => {
+					this.updateTabHeaders();
+				}, 150);
 			});
 		});
 
@@ -120,6 +145,9 @@ export class StickyTabService {
 			
 			// Update tab headers when icon is created
 			this.updateTabHeaders();
+			
+			// Ensure workspace class is set
+			this.updateWorkspaceClass(true);
 		};
 
 		// Try to insert immediately
@@ -188,6 +216,12 @@ export class StickyTabService {
 	 * Remove the sticky home icon
 	 */
 	remove(): void {
+		// Clear any pending tab header updates
+		if (this.tabHeaderUpdateTimeout) {
+			clearTimeout(this.tabHeaderUpdateTimeout);
+			this.tabHeaderUpdateTimeout = null;
+		}
+
 		// Clear any check intervals
 		if (this.stickyIconEl && this.stickyIconEl._checkInterval) {
 			clearInterval(this.stickyIconEl._checkInterval);
@@ -233,7 +267,7 @@ export class StickyTabService {
 			this.stickyIconEl.classList.remove(STICKY_ICON_ACTIVE_CLASS);
 		}
 
-		// Also update tab headers when active state changes
+		// Also update tab headers when active state changes (debounced)
 		this.updateTabHeaders();
 	}
 
@@ -251,8 +285,25 @@ export class StickyTabService {
 	/**
 	 * Update tab headers to hide/show home base tab
 	 * Only works when sticky icon is enabled
+	 * Debounced to prevent flickering during tab transitions
 	 */
 	updateTabHeaders(): void {
+		// Clear any pending update
+		if (this.tabHeaderUpdateTimeout) {
+			clearTimeout(this.tabHeaderUpdateTimeout);
+		}
+
+		// Debounce the update to avoid flickering during tab animations
+		this.tabHeaderUpdateTimeout = setTimeout(() => {
+			this.tabHeaderUpdateTimeout = null;
+			this._doUpdateTabHeaders();
+		}, 100); // Small delay to let tab animations complete
+	}
+
+	/**
+	 * Internal method that actually updates the tab headers
+	 */
+	private _doUpdateTabHeaders(): void {
 		// Only hide tabs if sticky icon is enabled
 		if (!this.plugin.settings.showStickyHomeIcon) {
 			// Remove all home base tab classes if sticky icon is disabled
@@ -265,18 +316,21 @@ export class StickyTabService {
 		const homeBasePath = this.plugin.settings.homeBasePath;
 		if (!homeBasePath) return;
 
-		// Iterate all leaves and tag home base tabs
-		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
-			const isHomeBase = leafHasFile(leaf, homeBasePath);
-			const tabHeader = this.getTabHeaderForLeaf(leaf);
-			
-			if (tabHeader) {
-				if (isHomeBase) {
-					tabHeader.classList.add('is-home-base-tab');
-				} else {
-					tabHeader.classList.remove('is-home-base-tab');
+		// Use requestAnimationFrame to ensure DOM is ready
+		requestAnimationFrame(() => {
+			// Iterate all leaves and tag home base tabs
+			this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+				const isHomeBase = leafHasFile(leaf, homeBasePath);
+				const tabHeader = this.getTabHeaderForLeaf(leaf);
+				
+				if (tabHeader) {
+					if (isHomeBase) {
+						tabHeader.classList.add('is-home-base-tab');
+					} else {
+						tabHeader.classList.remove('is-home-base-tab');
+					}
 				}
-			}
+			});
 		});
 	}
 

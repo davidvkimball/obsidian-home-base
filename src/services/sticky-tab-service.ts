@@ -3,8 +3,9 @@
  * Manages the sticky home icon in the tab bar
  */
 
-import { Platform, setIcon } from 'obsidian';
+import { Menu, Platform, setIcon, WorkspaceLeaf } from 'obsidian';
 import type HomeBasePlugin from '../main';
+import { leafHasFile } from '../utils/file-utils';
 
 /**
  * CSS class for the sticky home icon container
@@ -36,6 +37,7 @@ export class StickyTabService {
 		// Only show on desktop
 		if (Platform.isMobile) {
 			this.remove();
+			this.updateTabHeaders(); // Clean up tab headers
 			return;
 		}
 
@@ -43,6 +45,7 @@ export class StickyTabService {
 			this.create();
 		} else {
 			this.remove();
+			this.updateTabHeaders(); // Clean up tab headers when removing icon
 		}
 	}
 
@@ -72,6 +75,23 @@ export class StickyTabService {
 			});
 		});
 
+		// Add context menu for closing home base
+		this.stickyIconEl.addEventListener('contextmenu', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			
+			const menu = new Menu();
+			menu.addItem((item) => {
+				item
+					.setTitle('Close home base')
+					.setIcon('x')
+					.onClick(() => {
+						void this.closeHomeBase();
+					});
+			});
+			menu.showAtMouseEvent(e);
+		});
+
 		// Function to ensure icon is in the right place
 		// Insert it into the workspace-tabs container so it's positioned relative to tabs
 		const ensureIconInPlace = () => {
@@ -97,6 +117,9 @@ export class StickyTabService {
 
 			// Update active state after insertion
 			this.updateActiveState();
+			
+			// Update tab headers when icon is created
+			this.updateTabHeaders();
 		};
 
 		// Try to insert immediately
@@ -122,6 +145,8 @@ export class StickyTabService {
 					// Check immediately - don't wait for layout to settle
 					// This prevents flickering when tabs close
 					ensureIconInPlace();
+					// Update tab headers on layout change
+					this.updateTabHeaders();
 				}
 			};
 
@@ -207,6 +232,9 @@ export class StickyTabService {
 		} else {
 			this.stickyIconEl.classList.remove(STICKY_ICON_ACTIVE_CLASS);
 		}
+
+		// Also update tab headers when active state changes
+		this.updateTabHeaders();
 	}
 
 	/**
@@ -216,5 +244,113 @@ export class StickyTabService {
 		this.plugin.settings.showStickyHomeIcon = !this.plugin.settings.showStickyHomeIcon;
 		await this.plugin.saveSettings();
 		this.update();
+		// Update tab headers when toggling sticky icon
+		this.updateTabHeaders();
+	}
+
+	/**
+	 * Update tab headers to hide/show home base tab
+	 * Only works when sticky icon is enabled
+	 */
+	updateTabHeaders(): void {
+		// Only hide tabs if sticky icon is enabled
+		if (!this.plugin.settings.showStickyHomeIcon) {
+			// Remove all home base tab classes if sticky icon is disabled
+			document.querySelectorAll('.is-home-base-tab').forEach(el => {
+				el.classList.remove('is-home-base-tab');
+			});
+			return;
+		}
+
+		const homeBasePath = this.plugin.settings.homeBasePath;
+		if (!homeBasePath) return;
+
+		// Iterate all leaves and tag home base tabs
+		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+			const isHomeBase = leafHasFile(leaf, homeBasePath);
+			const tabHeader = this.getTabHeaderForLeaf(leaf);
+			
+			if (tabHeader) {
+				if (isHomeBase) {
+					tabHeader.classList.add('is-home-base-tab');
+				} else {
+					tabHeader.classList.remove('is-home-base-tab');
+				}
+			}
+		});
+	}
+
+	/**
+	 * Get the tab header element for a given leaf
+	 */
+	private getTabHeaderForLeaf(leaf: WorkspaceLeaf): HTMLElement | null {
+		// Try to get from leaf's internal property first (if available)
+		const leafAny = leaf as unknown as { tabHeaderEl?: HTMLElement };
+		if (leafAny.tabHeaderEl) {
+			return leafAny.tabHeaderEl;
+		}
+
+		// Fallback: find by querying DOM
+		const viewType = leaf.view?.getViewType();
+		if (!viewType) return null;
+
+		// Get the active leaf to help with matching
+		const activeLeaf = this.plugin.app.workspace.getMostRecentLeaf();
+		const isActive = leaf === activeLeaf;
+
+		// Find all tab headers with matching view type
+		const tabHeaders = document.querySelectorAll(`.workspace-tab-header[data-type="${viewType}"]`);
+		
+		// If this is the active leaf, prefer the active tab header
+		if (isActive) {
+			const activeHeader = document.querySelector('.workspace-tab-header.is-active');
+			if (activeHeader && activeHeader.getAttribute('data-type') === viewType) {
+				return activeHeader as HTMLElement;
+			}
+		}
+
+		// Try to match by checking if header's leaf property matches
+		for (const header of Array.from(tabHeaders)) {
+			const headerEl = header as HTMLElement;
+			const headerElWithLeaf = headerEl as unknown as { leaf?: WorkspaceLeaf };
+			const headerLeaf = headerElWithLeaf.leaf;
+			if (headerLeaf === leaf) {
+				return headerEl;
+			}
+		}
+
+		// If only one tab header matches the view type, it's likely the one
+		if (tabHeaders.length === 1) {
+			return tabHeaders[0] as HTMLElement;
+		}
+
+		// Last resort: if this is active and we found an active header, use it
+		if (isActive) {
+			const activeHeader = document.querySelector('.workspace-tab-header.is-active');
+			if (activeHeader) {
+				return activeHeader as HTMLElement;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Close the home base tab
+	 */
+	async closeHomeBase(): Promise<void> {
+		const homeBasePath = this.plugin.settings.homeBasePath;
+		if (!homeBasePath) return;
+
+		const { getFileByPath } = await import('../utils/file-utils');
+		const homeBaseFile = getFileByPath(this.plugin.app, homeBasePath);
+		if (!homeBaseFile) return;
+
+		const homeBaseLeaf = this.plugin.homeService.findExistingHomeBaseLeaf(homeBaseFile);
+		if (homeBaseLeaf) {
+			homeBaseLeaf.detach();
+			// Update tab headers after closing
+			this.updateTabHeaders();
+		}
 	}
 }

@@ -59,6 +59,9 @@ export default class HomeBasePlugin extends Plugin {
 			// Update UI features
 			this.updateStickyTabIcon();
 			this.updateMobileButton();
+			
+			// Update tab headers after layout is ready
+			this.stickyTabService.updateTabHeaders();
 		});
 
 		// Register layout change handler
@@ -66,6 +69,7 @@ export default class HomeBasePlugin extends Plugin {
 			this.app.workspace.on('layout-change', () => {
 				this.newTabService.handleLayoutChange();
 				this.stickyTabService.updateActiveState();
+				this.stickyTabService.updateTabHeaders();
 			})
 		);
 
@@ -73,6 +77,14 @@ export default class HomeBasePlugin extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on('file-open', () => {
 				this.stickyTabService.updateActiveState();
+				this.stickyTabService.updateTabHeaders();
+			})
+		);
+
+		// Register active leaf change handler for tab header updates
+		this.registerEvent(
+			this.app.workspace.on('active-leaf-change', () => {
+				this.stickyTabService.updateTabHeaders();
 			})
 		);
 
@@ -137,6 +149,15 @@ export default class HomeBasePlugin extends Plugin {
 				new Notice(`Sticky home icon ${state}`);
 			},
 		});
+
+		// Close home base
+		this.addCommand({
+			id: 'close',
+			name: 'Close',
+			callback: async () => {
+				await this.stickyTabService.closeHomeBase();
+			},
+		});
 	}
 
 	/**
@@ -159,6 +180,8 @@ export default class HomeBasePlugin extends Plugin {
 	 */
 	updateStickyTabIcon(): void {
 		this.stickyTabService.update();
+		// Also update tab headers when sticky icon setting changes
+		this.stickyTabService.updateTabHeaders();
 	}
 
 	/**

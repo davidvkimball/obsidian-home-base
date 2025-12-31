@@ -75,6 +75,11 @@
 	box-sizing: border-box;
 }
 
+/* Hide home base tab header when sticky icon is enabled */
+.workspace-tab-header.is-home-base-tab {
+	display: none !important;
+}
+
 /* ========================================
    Mobile New Tab Button Replacement
    ======================================== */

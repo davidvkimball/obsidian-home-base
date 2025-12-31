@@ -87,7 +87,21 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						.onChange(async (value) => {
 							this.plugin.settings.replaceNewTab = value;
 							await this.plugin.saveSettings();
+							
+							// Preserve scroll position before re-rendering
+							const scrollContainer = containerEl.closest('.vertical-tab-content') || 
+													containerEl.closest('.settings-content') || 
+													containerEl.parentElement;
+							const scrollTop = scrollContainer?.scrollTop || 0;
+							
 							this.display(); // Re-render to show/hide dependent setting
+							
+							// Restore scroll position after rendering
+							requestAnimationFrame(() => {
+								if (scrollContainer) {
+									scrollContainer.scrollTop = scrollTop;
+								}
+							});
 						});
 				});
 		});
@@ -140,7 +154,21 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							this.plugin.settings.showStickyHomeIcon = value;
 							await this.plugin.saveSettings();
 							this.plugin.updateStickyTabIcon();
+							
+							// Preserve scroll position before re-rendering
+							const scrollContainer = containerEl.closest('.vertical-tab-content') || 
+													containerEl.closest('.settings-content') || 
+													containerEl.parentElement;
+							const scrollTop = scrollContainer?.scrollTop || 0;
+							
 							this.display(); // Re-render to show/hide dependent setting
+							
+							// Restore scroll position after rendering
+							requestAnimationFrame(() => {
+								if (scrollContainer) {
+									scrollContainer.scrollTop = scrollTop;
+								}
+							});
 						});
 				});
 		});
@@ -207,7 +235,21 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						.onClick(async () => {
 							this.plugin.settings.commandOnOpen = '';
 							await this.plugin.saveSettings();
+							
+							// Preserve scroll position before re-rendering
+							const scrollContainer = containerEl.closest('.vertical-tab-content') || 
+													containerEl.closest('.settings-content') || 
+													containerEl.parentElement;
+							const scrollTop = scrollContainer?.scrollTop || 0;
+							
 							this.display();
+							
+							// Restore scroll position after rendering
+							requestAnimationFrame(() => {
+								if (scrollContainer) {
+									scrollContainer.scrollTop = scrollTop;
+								}
+							});
 						});
 				});
 		});

@@ -49,8 +49,11 @@ export class HomeBaseService {
 		const existingLeaf = this.findExistingHomeBaseLeaf(file);
 		
 		// If keepExistingTabs is false, close all tabs except the home base
+		// This must happen BEFORE we determine which leaf to use, so we don't reuse closed leaves
 		if (!settings.keepExistingTabs) {
 			await this.closeAllLeavesExcept(existingLeaf);
+			// Small additional delay to ensure all detachments are processed
+			await new Promise(resolve => setTimeout(resolve, 50));
 		}
 		
 		if (existingLeaf) {
@@ -77,10 +80,14 @@ export class HomeBaseService {
 			}
 		} else {
 			// Open in a new tab or use empty tab
+			// After closing all leaves, we should create a fresh leaf
+			// Check for empty leaf first, but if keepExistingTabs is false, we likely closed everything
 			const emptyLeaf = this.findEmptyLeaf();
-			if (emptyLeaf) {
+			if (emptyLeaf && settings.keepExistingTabs) {
+				// Only reuse empty leaf if we're keeping existing tabs
 				leaf = emptyLeaf;
 			} else {
+				// Create a new leaf
 				leaf = this.app.workspace.getLeaf('tab');
 			}
 		}
@@ -208,42 +215,54 @@ export class HomeBaseService {
 	}
 
 	/**
-	 * Check if a leaf is in the main workspace (not a sidebar)
-	 */
-	private isMainWorkspaceLeaf(leaf: WorkspaceLeaf): boolean {
-		// Get the leaf's container element (may be an internal property)
-		const leafAny = leaf as unknown as { containerEl?: HTMLElement };
-		const container = leafAny.containerEl;
-		if (!container) return false;
-		
-		// Check if it's in the root workspace split (main content area)
-		// Sidebars have different parent structures
-		const rootWorkspace = container.closest('.workspace-split.mod-vertical.mod-root');
-		return rootWorkspace !== null;
-	}
-
-	/**
 	 * Close all leaves in the main workspace except the specified one
+	 * Simplified approach: iterate all leaves and close those in main workspace
 	 */
 	private async closeAllLeavesExcept(exceptLeaf: WorkspaceLeaf | null): Promise<void> {
-		// Collect all leaves in the main workspace only
-		const mainWorkspaceLeaves: WorkspaceLeaf[] = [];
+		// Use iterateAllLeaves to get ALL leaves
+		const leavesToClose: WorkspaceLeaf[] = [];
+		
 		this.app.workspace.iterateAllLeaves((leaf) => {
-			// Only include leaves in the main workspace (not sidebars)
-			if (this.isMainWorkspaceLeaf(leaf)) {
-				mainWorkspaceLeaves.push(leaf);
+			// Skip the exception leaf
+			if (leaf === exceptLeaf) {
+				return;
+			}
+			
+			// Try to determine if this is a main workspace leaf
+			// Get the view's container element
+			const view = leaf.view;
+			let container: HTMLElement | null = null;
+			
+			if (view) {
+				const viewAny = view as unknown as { containerEl?: HTMLElement };
+				container = viewAny.containerEl || null;
+			}
+			
+			// If no container from view, try leaf's containerEl
+			if (!container) {
+				const leafAny = leaf as unknown as { containerEl?: HTMLElement };
+				container = leafAny.containerEl || null;
+			}
+			
+			if (container) {
+				// Check if it's in the main workspace (root, not sidebar)
+				const rootWorkspace = container.closest('.workspace-split.mod-vertical.mod-root');
+				const leftSidebar = container.closest('.workspace-split.mod-left-split');
+				const rightSidebar = container.closest('.workspace-split.mod-right-split');
+				
+				if (rootWorkspace && !leftSidebar && !rightSidebar) {
+					leavesToClose.push(leaf);
+				}
 			}
 		});
 		
-		// Close all main workspace leaves except the one to keep
-		for (const leaf of mainWorkspaceLeaves) {
-			if (leaf !== exceptLeaf) {
-				void leaf.detach();
-			}
+		// Close all identified leaves
+		for (const leaf of leavesToClose) {
+			void leaf.detach();
 		}
 		
-		// Small delay to ensure all detachments complete
-		await new Promise(resolve => setTimeout(resolve, 100));
+		// Wait for detachments to complete
+		await new Promise(resolve => setTimeout(resolve, 200));
 	}
 
 	/**

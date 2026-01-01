@@ -44,15 +44,7 @@ export class NewTabService {
 			return;
 		}
 
-		// Check if home base is already the focused tab
-		if (this.plugin.homeService.isFocusedOnHomeBase()) {
-			console.debug('Home Base: Already focused on home base, skipping startup open');
-			this.startupCompleted = true;
-			this.isStartup = false;
-			return;
-		}
-
-		// Check for URL params (like obsidian://open links)
+		// Check for URL params (like obsidian://open links) - if present, skip everything
 		if (await this.hasUrlParams()) {
 			console.debug('Home Base: URL params detected, skipping startup open');
 			this.startupCompleted = true;
@@ -64,9 +56,8 @@ export class NewTabService {
 		// This ensures all tabs are loaded before we try to close them
 		await new Promise(resolve => setTimeout(resolve, 300));
 
-		// Open home base
-		// If keepExistingTabs is false, we want to close all tabs first
-		// So we pass replaceActiveLeaf: false to trigger the closeAllLeaves() logic
+		// Always call openHomeBase - it will handle closing tabs if keepExistingTabs is false
+		// even if the home base is already open
 		await this.plugin.homeService.openHomeBase({
 			replaceActiveLeaf: false,
 			runCommand: true,

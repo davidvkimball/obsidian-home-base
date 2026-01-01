@@ -60,9 +60,15 @@ export class NewTabService {
 			return;
 		}
 
+		// Wait a bit for Obsidian to finish restoring the workspace
+		// This ensures all tabs are loaded before we try to close them
+		await new Promise(resolve => setTimeout(resolve, 300));
+
 		// Open home base
+		// If keepExistingTabs is false, we want to close all tabs first
+		// So we pass replaceActiveLeaf: false to trigger the closeAllLeaves() logic
 		await this.plugin.homeService.openHomeBase({
-			replaceActiveLeaf: !settings.keepExistingTabs,
+			replaceActiveLeaf: false,
 			runCommand: true,
 		});
 

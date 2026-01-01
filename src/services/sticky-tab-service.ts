@@ -26,6 +26,7 @@ export class StickyTabService {
 	private stickyIconEl: StickyIconElement | null = null;
 	private layoutChangeHandler: (() => void) | null = null;
 	private tabHeaderUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
+	private sidebarObserver: MutationObserver | null = null;
 
 	constructor(plugin: HomeBasePlugin) {
 		this.plugin = plugin;
@@ -148,6 +149,12 @@ export class StickyTabService {
 			
 			// Ensure workspace class is set
 			this.updateWorkspaceClass(true);
+			
+			// Update icon position based on sidebar state
+			this.updateIconPositionForSidebar();
+			
+			// Watch for sidebar collapse/expand changes
+			this.watchSidebarState();
 		};
 
 		// Try to insert immediately
@@ -232,6 +239,12 @@ export class StickyTabService {
 			this.stickyIconEl._containerObserver.disconnect();
 		}
 
+		// Disconnect sidebar observer
+		if (this.sidebarObserver) {
+			this.sidebarObserver.disconnect();
+			this.sidebarObserver = null;
+		}
+
 		if (this.stickyIconEl) {
 			// Only remove if it's actually in the DOM
 			if (this.stickyIconEl.parentElement) {
@@ -269,6 +282,79 @@ export class StickyTabService {
 
 		// Also update tab headers when active state changes (debounced)
 		this.updateTabHeaders();
+	}
+
+	/**
+	 * Check if the left sidebar is collapsed
+	 * Based on obsidian-oxygen-settings implementation
+	 */
+	private isLeftSidebarCollapsed(): boolean {
+		// Use the correct selector for left sidebar
+		const leftSidebar = document.querySelector('.workspace-split.mod-left-split') || 
+		                    document.querySelector('.mod-left-split');
+		
+		if (!leftSidebar) return false;
+		
+		// Check for the is-sidedock-collapsed class - this is the most reliable indicator
+		return leftSidebar.classList.contains('is-sidedock-collapsed');
+	}
+
+	/**
+	 * Update icon position based on sidebar state
+	 */
+	updateIconPositionForSidebar(): void {
+		if (!this.stickyIconEl) return;
+		
+		const isCollapsed = this.isLeftSidebarCollapsed();
+		const mainWorkspace = document.querySelector('.workspace-split.mod-vertical.mod-root');
+		
+		// Use CSS class instead of inline styles
+		if (isCollapsed) {
+			this.stickyIconEl.classList.add('home-base-sticky-icon-sidebar-collapsed');
+			// Adjust tab container padding when sidebar is collapsed
+			if (mainWorkspace) {
+				mainWorkspace.classList.add('home-base-sidebar-collapsed');
+			}
+		} else {
+			this.stickyIconEl.classList.remove('home-base-sticky-icon-sidebar-collapsed');
+			// Remove collapsed padding adjustment
+			if (mainWorkspace) {
+				mainWorkspace.classList.remove('home-base-sidebar-collapsed');
+			}
+		}
+	}
+
+	/**
+	 * Watch for sidebar state changes and update icon position
+	 * Based on obsidian-oxygen-settings implementation
+	 */
+	private watchSidebarState(): void {
+		if (this.sidebarObserver) {
+			this.sidebarObserver.disconnect();
+		}
+		
+		const leftSidebar = document.querySelector('.workspace-split.mod-left-split') || 
+		                    document.querySelector('.mod-left-split');
+		
+		if (!leftSidebar) return;
+		
+		// Watch for class changes on the sidebar element
+		this.sidebarObserver = new MutationObserver((mutations) => {
+			let shouldUpdate = false;
+			mutations.forEach((mutation) => {
+				if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+					shouldUpdate = true;
+				}
+			});
+			if (shouldUpdate) {
+				this.updateIconPositionForSidebar();
+			}
+		});
+		
+		this.sidebarObserver.observe(leftSidebar, {
+			attributes: true,
+			attributeFilter: ['class'],
+		});
 	}
 
 	/**

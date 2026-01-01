@@ -47,6 +47,12 @@ export class HomeBaseService {
 
 		// Check if we should use an existing leaf
 		const existingLeaf = this.findExistingHomeBaseLeaf(file);
+		
+		// If keepExistingTabs is false, close all tabs except the home base
+		if (!settings.keepExistingTabs) {
+			await this.closeAllLeavesExcept(existingLeaf);
+		}
+		
 		if (existingLeaf) {
 			// Just focus the existing leaf
 			this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
@@ -69,10 +75,6 @@ export class HomeBaseService {
 			} else {
 				leaf = this.app.workspace.getLeaf(false);
 			}
-		} else if (!settings.keepExistingTabs) {
-			// Close all tabs and open fresh
-			await this.closeAllLeaves();
-			leaf = this.app.workspace.getLeaf(false);
 		} else {
 			// Open in a new tab or use empty tab
 			const emptyLeaf = this.findEmptyLeaf();
@@ -206,13 +208,42 @@ export class HomeBaseService {
 	}
 
 	/**
-	 * Close all leaves in the main workspace
+	 * Check if a leaf is in the main workspace (not a sidebar)
 	 */
-	private async closeAllLeaves(): Promise<void> {
-		const leaves = [...this.app.workspace.getLeavesOfType('markdown')];
-		for (const leaf of leaves) {
-			leaf.detach();
+	private isMainWorkspaceLeaf(leaf: WorkspaceLeaf): boolean {
+		// Get the leaf's container element (may be an internal property)
+		const leafAny = leaf as unknown as { containerEl?: HTMLElement };
+		const container = leafAny.containerEl;
+		if (!container) return false;
+		
+		// Check if it's in the root workspace split (main content area)
+		// Sidebars have different parent structures
+		const rootWorkspace = container.closest('.workspace-split.mod-vertical.mod-root');
+		return rootWorkspace !== null;
+	}
+
+	/**
+	 * Close all leaves in the main workspace except the specified one
+	 */
+	private async closeAllLeavesExcept(exceptLeaf: WorkspaceLeaf | null): Promise<void> {
+		// Collect all leaves in the main workspace only
+		const mainWorkspaceLeaves: WorkspaceLeaf[] = [];
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			// Only include leaves in the main workspace (not sidebars)
+			if (this.isMainWorkspaceLeaf(leaf)) {
+				mainWorkspaceLeaves.push(leaf);
+			}
+		});
+		
+		// Close all main workspace leaves except the one to keep
+		for (const leaf of mainWorkspaceLeaves) {
+			if (leaf !== exceptLeaf) {
+				void leaf.detach();
+			}
 		}
+		
+		// Small delay to ensure all detachments complete
+		await new Promise(resolve => setTimeout(resolve, 100));
 	}
 
 	/**

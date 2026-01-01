@@ -15,7 +15,7 @@
 	margin: 0;
 	cursor: default;
 	color: var(--text-muted);
-	transition: color 150ms ease;
+	transition: color 150ms ease, left 150ms ease;
 	background: none;
 	height: var(--tab-height, 32px);
 	width: 24px;
@@ -36,7 +36,12 @@
 	opacity: 1 !important;
 	visibility: visible !important;
 	/* Prevent any transitions that might cause flickering */
-	transition: color 150ms ease, opacity 0s, visibility 0s;
+	transition: color 150ms ease, left 150ms ease, opacity 0s, visibility 0s;
+}
+
+/* When left sidebar is collapsed, move icon to the right to fill the gap */
+.workspace-tabs > .home-base-sticky-icon.home-base-sticky-icon-sidebar-collapsed {
+	left: 42px; /* Move to fill the gap when sidebar is collapsed */
 }
 
 /* Ensure workspace-tabs has relative positioning for absolute child */
@@ -47,6 +52,11 @@
 /* Add padding to tab container inner to make space for the icon - ONLY when sticky icon is enabled */
 .workspace-split.mod-vertical.mod-root.home-base-sticky-icon-enabled .workspace-tab-header-container-inner {
 	padding-left: 32px; /* Space for icon (24px) + margin (8px) */
+}
+
+/* When sidebar is collapsed, adjust padding to match icon position */
+.workspace-split.mod-vertical.mod-root.home-base-sticky-icon-enabled.home-base-sidebar-collapsed .workspace-tab-header-container-inner {
+	padding-left: 44px; /* More space when sidebar is collapsed to align with icon at 36px */
 }
 
 .home-base-sticky-icon:hover {

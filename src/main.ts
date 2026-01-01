@@ -72,6 +72,8 @@ export default class HomeBasePlugin extends Plugin {
 				setTimeout(() => {
 					this.stickyTabService.updateActiveState();
 					this.stickyTabService.updateTabHeaders();
+					// Also update icon position in case sidebar state changed
+					this.stickyTabService.updateIconPositionForSidebar();
 				}, 150);
 			})
 		);

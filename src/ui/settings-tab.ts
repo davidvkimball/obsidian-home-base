@@ -192,7 +192,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 			uiGroup.addSetting((setting) => {
 				setting
 					.setName('Hide tab header')
-					.setDesc('Hide the home base tab header when it\'s open, using the sticky icon as the tab indicator')
+					.setDesc('Hide the home base tab header when it\'s open, using the sticky icon as the tab indicator. You can pin or unpin the tab by right-clicking the sticky icon.')
 					.addToggle((toggle) => {
 						toggle
 							.setValue(this.plugin.settings.hideHomeTabHeader)

@@ -38,6 +38,12 @@ export class HomeBaseService {
 			return false;
 		}
 
+		// Check if settings modal is open - if so, don't open home base to avoid closing the modal
+		if (this.isSettingsModalOpen()) {
+			console.debug('Home Base: Settings modal is open, skipping openHomeBase');
+			return false;
+		}
+
 		// Get the home base file
 		const file = getFileByPath(this.app, settings.homeBasePath);
 		if (!file) {
@@ -57,8 +63,9 @@ export class HomeBaseService {
 		}
 		
 		if (existingLeaf) {
-			// Just focus the existing leaf
-			this.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
+			// Just focus the existing leaf (but don't focus if settings modal is open)
+			const shouldFocus = !this.isSettingsModalOpen();
+			this.app.workspace.setActiveLeaf(existingLeaf, { focus: shouldFocus });
 			await this.configureView(existingLeaf, file);
 			
 			if (runCommand) {
@@ -94,7 +101,9 @@ export class HomeBaseService {
 
 		// Open the file
 		await leaf.openFile(file);
-		this.app.workspace.setActiveLeaf(leaf, { focus: true });
+		// Don't focus if settings modal is open
+		const shouldFocus = !this.isSettingsModalOpen();
+		this.app.workspace.setActiveLeaf(leaf, { focus: shouldFocus });
 		
 		// Configure the view
 		await this.configureView(leaf, file);
@@ -290,6 +299,31 @@ export class HomeBaseService {
 		if (!path) return false;
 		
 		return getFileByPath(this.app, path) !== null;
+	}
+
+	/**
+	 * Check if the settings modal is currently open
+	 */
+	private isSettingsModalOpen(): boolean {
+		// Check for settings modal by looking for the modal container
+		// Try multiple selectors to be more robust
+		const settingsModal = document.querySelector('.modal-container.mod-settings') ||
+		                      document.querySelector('.modal.mod-settings') ||
+		                      document.querySelector('.vertical-tab-content');
+		
+		// Also check if any modal is open and contains settings content
+		if (!settingsModal) {
+			const allModals = document.querySelectorAll('.modal-container');
+			for (const modal of Array.from(allModals)) {
+				if (modal.querySelector('.vertical-tab-content') || 
+				    modal.querySelector('.settings-content') ||
+				    modal.classList.contains('mod-settings')) {
+					return true;
+				}
+			}
+		}
+		
+		return settingsModal !== null;
 	}
 
 	/**

@@ -34,6 +34,7 @@ export class NewTabService {
 
 	/**
 	 * Handle app startup - open home base if needed
+	 * Only called on actual app startup, not plugin reloads
 	 */
 	private async handleStartup(): Promise<void> {
 		const settings = this.plugin.settings;
@@ -65,6 +66,31 @@ export class NewTabService {
 
 		this.startupCompleted = true;
 		this.isStartup = false;
+	}
+
+	/**
+	 * Check if the settings modal is currently open
+	 */
+	private isSettingsModalOpen(): boolean {
+		// Check for settings modal by looking for the modal container
+		// Try multiple selectors to be more robust
+		const settingsModal = document.querySelector('.modal-container.mod-settings') ||
+		                      document.querySelector('.modal.mod-settings') ||
+		                      document.querySelector('.vertical-tab-content');
+		
+		// Also check if any modal is open and contains settings content
+		if (!settingsModal) {
+			const allModals = document.querySelectorAll('.modal-container');
+			for (const modal of Array.from(allModals)) {
+				if (modal.querySelector('.vertical-tab-content') || 
+				    modal.querySelector('.settings-content') ||
+				    modal.classList.contains('mod-settings')) {
+					return true;
+				}
+			}
+		}
+		
+		return settingsModal !== null;
 	}
 
 	/**

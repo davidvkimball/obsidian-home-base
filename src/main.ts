@@ -53,15 +53,28 @@ export default class HomeBasePlugin extends Plugin {
 
 		// Wait for layout to be ready
 		this.app.workspace.onLayoutReady(() => {
-			// Initialize new tab service (handles startup)
-			this.newTabService.initialize();
+			// Use a small delay to ensure DOM is ready (especially for settings modal detection)
+			setTimeout(() => {
+				// Check if we should skip startup logic (plugin reload or settings modal open)
+				if (this.shouldSkipStartupLogic()) {
+					console.debug('Home Base: Skipping startup logic (plugin reload or settings modal open)');
+					// Still update UI features, just don't run startup logic
+					this.updateStickyTabIcon();
+					this.updateMobileButton();
+					this.stickyTabService.updateTabHeaders();
+					return;
+				}
 
-			// Update UI features
-			this.updateStickyTabIcon();
-			this.updateMobileButton();
-			
-			// Update tab headers after layout is ready
-			this.stickyTabService.updateTabHeaders();
+				// This is actual app startup - run startup logic
+				this.newTabService.initialize();
+
+				// Update UI features
+				this.updateStickyTabIcon();
+				this.updateMobileButton();
+				
+				// Update tab headers after layout is ready
+				this.stickyTabService.updateTabHeaders();
+			}, 100); // Small delay to ensure DOM is ready
 		});
 
 		// Register layout change handler
@@ -200,5 +213,52 @@ export default class HomeBasePlugin extends Plugin {
 	 */
 	updateMobileButton(): void {
 		this.mobileButtonService.update();
+	}
+
+	/**
+	 * Check if we should skip startup logic (e.g., plugin reload, settings modal open)
+	 * This prevents destructive behavior when the plugin is reloaded or settings are open
+	 */
+	private shouldSkipStartupLogic(): boolean {
+		// Check if settings modal is open - never run startup logic if it is
+		if (this.isSettingsModalOpen()) {
+			return true;
+		}
+
+		// Check if this is a plugin reload vs actual app startup
+		// On actual startup, Obsidian hasn't restored the workspace yet
+		// On plugin reload, files are already open and workspace is restored
+		const hasOpenFiles = this.app.workspace.getLeavesOfType('markdown').length > 0 ||
+		                     this.app.workspace.getLeavesOfType('canvas').length > 0 ||
+		                     this.app.workspace.getLeavesOfType('bases').length > 0 ||
+		                     this.app.workspace.getLeavesOfType('empty').length > 0;
+		
+		// If files are open, this is likely a plugin reload, not actual startup
+		return hasOpenFiles;
+	}
+
+	/**
+	 * Check if the settings modal is currently open
+	 */
+	private isSettingsModalOpen(): boolean {
+		// Check for settings modal by looking for the modal container
+		// Try multiple selectors to be more robust
+		const settingsModal = document.querySelector('.modal-container.mod-settings') ||
+		                      document.querySelector('.modal.mod-settings') ||
+		                      document.querySelector('.vertical-tab-content');
+		
+		// Also check if any modal is open and contains settings content
+		if (!settingsModal) {
+			const allModals = document.querySelectorAll('.modal-container');
+			for (const modal of Array.from(allModals)) {
+				if (modal.querySelector('.vertical-tab-content') || 
+				    modal.querySelector('.settings-content') ||
+				    modal.classList.contains('mod-settings')) {
+					return true;
+				}
+			}
+		}
+		
+		return settingsModal !== null;
 	}
 }

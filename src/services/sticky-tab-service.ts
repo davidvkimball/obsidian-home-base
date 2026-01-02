@@ -5,7 +5,7 @@
 
 import { Menu, Platform, setIcon, WorkspaceLeaf } from 'obsidian';
 import type HomeBasePlugin from '../main';
-import { leafHasFile } from '../utils/file-utils';
+import { getFileByPath, leafHasFile } from '../utils/file-utils';
 
 /**
  * CSS class for the sticky home icon container
@@ -101,12 +101,28 @@ export class StickyTabService {
 			});
 		});
 
-		// Add context menu for closing home base
+		// Add context menu for closing home base and pin/unpin
 		this.stickyIconEl.addEventListener('contextmenu', (e) => {
 			e.preventDefault();
 			e.stopPropagation();
 			
 			const menu = new Menu();
+			
+			// Add Pin/Unpin option based on current state
+			const isPinned = this.isHomeBaseTabPinned();
+			menu.addItem((item) => {
+				item
+					.setTitle(isPinned ? 'Unpin home base' : 'Pin home base')
+					.setIcon(isPinned ? 'pin-off' : 'pin')
+					.onClick(() => {
+						if (isPinned) {
+							this.unpinHomeBaseTab();
+						} else {
+							this.pinHomeBaseTab();
+						}
+					});
+			});
+			
 			menu.addItem((item) => {
 				item
 					.setTitle('Close home base')
@@ -492,5 +508,54 @@ export class StickyTabService {
 			// Update tab headers after closing
 			this.updateTabHeaders();
 		}
+	}
+
+	/**
+	 * Pin the home base tab
+	 */
+	pinHomeBaseTab(): void {
+		const homeBasePath = this.plugin.settings.homeBasePath;
+		if (!homeBasePath) return;
+
+		const homeBaseFile = getFileByPath(this.plugin.app, homeBasePath);
+		if (!homeBaseFile) return;
+
+		const homeBaseLeaf = this.plugin.homeService.findExistingHomeBaseLeaf(homeBaseFile);
+		if (homeBaseLeaf) {
+			homeBaseLeaf.setPinned(true);
+		}
+	}
+
+	/**
+	 * Unpin the home base tab
+	 */
+	unpinHomeBaseTab(): void {
+		const homeBasePath = this.plugin.settings.homeBasePath;
+		if (!homeBasePath) return;
+
+		const homeBaseFile = getFileByPath(this.plugin.app, homeBasePath);
+		if (!homeBaseFile) return;
+
+		const homeBaseLeaf = this.plugin.homeService.findExistingHomeBaseLeaf(homeBaseFile);
+		if (homeBaseLeaf) {
+			homeBaseLeaf.setPinned(false);
+		}
+	}
+
+	/**
+	 * Check if the home base tab is pinned
+	 */
+	isHomeBaseTabPinned(): boolean {
+		const homeBasePath = this.plugin.settings.homeBasePath;
+		if (!homeBasePath) return false;
+
+		const homeBaseFile = getFileByPath(this.plugin.app, homeBasePath);
+		if (!homeBaseFile) return false;
+
+		const homeBaseLeaf = this.plugin.homeService.findExistingHomeBaseLeaf(homeBaseFile);
+		if (!homeBaseLeaf) return false;
+
+		const viewState = homeBaseLeaf.getViewState();
+		return viewState.pinned === true;
 	}
 }

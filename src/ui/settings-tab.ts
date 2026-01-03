@@ -37,7 +37,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		const activeValue = isMobile ? this.plugin.settings.mobileHomeBaseValue : this.plugin.settings.homeBaseValue;
 
 		// General Settings (no heading for first group)
-		const generalGroup = createSettingsGroup(containerEl);
+		const generalGroup = createSettingsGroup(containerEl, undefined, 'home-base');
 
 		// Home page type dropdown
 		generalGroup.addSetting((setting) => {
@@ -270,7 +270,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		});
 
 		// Tab Behavior Settings
-		const tabGroup = createSettingsGroup(containerEl, 'Tab Behavior');
+		const tabGroup = createSettingsGroup(containerEl, 'Tab Behavior', 'home-base');
 
 		tabGroup.addSetting((setting) => {
 			setting
@@ -325,7 +325,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		// (functionality now handled by "Opening mode (startup)")
 
 		// UI Features Settings
-		const uiGroup = createSettingsGroup(containerEl, 'UI Features');
+		const uiGroup = createSettingsGroup(containerEl, 'UI Features', 'home-base');
 
 		uiGroup.addSetting((setting) => {
 			setting
@@ -420,7 +420,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		});
 
 		// Mobile Settings
-		const mobileGroup = createSettingsGroup(containerEl, 'Mobile');
+		const mobileGroup = createSettingsGroup(containerEl, 'Mobile', 'home-base');
 
 		mobileGroup.addSetting((setting) => {
 				setting
@@ -556,7 +556,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		}
 
 		// Automation Settings
-		const automationGroup = createSettingsGroup(containerEl, 'Automation');
+		const automationGroup = createSettingsGroup(containerEl, 'Automation', 'home-base');
 
 		automationGroup.addSetting((setting) => {
 			const commandId = this.plugin.settings.commandOnOpen;

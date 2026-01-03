@@ -6,6 +6,7 @@
 import { Menu, Platform, setIcon, WorkspaceLeaf } from 'obsidian';
 import type HomeBasePlugin from '../main';
 import { getFileByPath, leafHasFile } from '../utils/file-utils';
+import { IconPicker } from '../ui/icon-picker';
 
 /**
  * CSS class for the sticky home icon container
@@ -45,7 +46,14 @@ export class StickyTabService {
 		}
 
 		if (this.plugin.settings.showStickyHomeIcon) {
-			this.create();
+			if (this.stickyIconEl) {
+				// Icon already exists, just update the icon
+				const iconName = this.plugin.settings.stickyIconName || 'home';
+				setIcon(this.stickyIconEl, iconName);
+			} else {
+				// Icon doesn't exist, create it
+				this.create();
+			}
 			this.updateWorkspaceClass(true);
 		} else {
 			this.remove();
@@ -81,17 +89,17 @@ export class StickyTabService {
 		this.stickyIconEl.setAttribute('aria-label', 'Open home base');
 		this.stickyIconEl.setAttribute('data-tooltip-position', 'bottom');
 
-		// Add the home icon
-		setIcon(this.stickyIconEl, 'home');
+		// Add the icon from settings (default to 'home')
+		const iconName = this.plugin.settings.stickyIconName || 'home';
+		setIcon(this.stickyIconEl, iconName);
 
 		// Add click handler
 		this.stickyIconEl.addEventListener('click', (e) => {
 			e.preventDefault();
 			e.stopPropagation();
 			
-			// Open home base and update tab headers after opening
-			void this.plugin.homeService.openHomeBase({
-				replaceActiveLeaf: this.plugin.settings.stickyIconReplaceTab,
+			// Open home base in ghost tab (always use ghost tab for sticky icon)
+			void this.plugin.homeService.openHomeBaseInGhostTab({
 				runCommand: true,
 			}).then(() => {
 				// Update tab headers after opening, with a slight delay to let animations complete
@@ -101,25 +109,34 @@ export class StickyTabService {
 			});
 		});
 
-		// Add context menu for closing home base and pin/unpin
+		// Add context menu for changing icon and closing home base
 		this.stickyIconEl.addEventListener('contextmenu', (e) => {
 			e.preventDefault();
 			e.stopPropagation();
 			
 			const menu = new Menu();
 			
-			// Add Pin/Unpin option based on current state
-			const isPinned = this.isHomeBaseTabPinned();
+			// Add Change icon option
 			menu.addItem((item) => {
 				item
-					.setTitle(isPinned ? 'Unpin home base' : 'Pin home base')
-					.setIcon(isPinned ? 'pin-off' : 'pin')
+					.setTitle('Change icon')
+					.setIcon('lucide-image-plus')
 					.onClick(() => {
-						if (isPinned) {
-							this.unpinHomeBaseTab();
-						} else {
-							this.pinHomeBaseTab();
-						}
+						const picker = new IconPicker(
+							this.plugin.app,
+							this.plugin.settings.stickyIconName,
+							(icon: string | null) => {
+								void (async () => {
+									this.plugin.settings.stickyIconName = icon;
+									await this.plugin.saveSettings();
+									// Update the icon display
+									if (this.stickyIconEl) {
+										setIcon(this.stickyIconEl, icon || 'home');
+									}
+								})();
+							}
+						);
+						picker.open();
 					});
 			});
 			
@@ -385,7 +402,7 @@ export class StickyTabService {
 	}
 
 	/**
-	 * Update tab headers to hide/show home base tab
+	 * Update tab headers to hide/show ghost tab
 	 * Only works when sticky icon is enabled
 	 * Debounced to prevent flickering during tab transitions
 	 */
@@ -406,7 +423,7 @@ export class StickyTabService {
 	 * Internal method that actually updates the tab headers
 	 */
 	private _doUpdateTabHeaders(): void {
-		// Only hide tabs if BOTH sticky icon AND hide tab header are enabled
+		// Only hide ghost tab if BOTH sticky icon AND hide tab header are enabled
 		if (!this.plugin.settings.showStickyHomeIcon || !this.plugin.settings.hideHomeTabHeader) {
 			// Remove all home base tab classes if either setting is disabled
 			document.querySelectorAll('.is-home-base-tab').forEach(el => {
@@ -420,15 +437,28 @@ export class StickyTabService {
 
 		// Use requestAnimationFrame to ensure DOM is ready
 		requestAnimationFrame(() => {
-			// Iterate all leaves and tag home base tabs
+			// Only hide the ghost tab (pinned home base tab)
 			this.plugin.app.workspace.iterateAllLeaves((leaf) => {
 				const isHomeBase = leafHasFile(leaf, homeBasePath);
-				const tabHeader = this.getTabHeaderForLeaf(leaf);
+				if (!isHomeBase) {
+					const tabHeader = this.getTabHeaderForLeaf(leaf);
+					if (tabHeader) {
+						tabHeader.classList.remove('is-home-base-tab');
+					}
+					return;
+				}
+
+				// Check if this is the ghost tab (pinned)
+				const viewState = leaf.getViewState();
+				const isGhostTab = viewState.pinned === true;
 				
+				const tabHeader = this.getTabHeaderForLeaf(leaf);
 				if (tabHeader) {
-					if (isHomeBase) {
+					if (isGhostTab) {
+						// Hide ghost tab header
 						tabHeader.classList.add('is-home-base-tab');
 					} else {
+						// Don't hide normal tabs
 						tabHeader.classList.remove('is-home-base-tab');
 					}
 				}

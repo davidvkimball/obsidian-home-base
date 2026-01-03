@@ -4,8 +4,9 @@
  * Inspired by obsidian-homepage and new-tab-default-page
  */
 
-import { App, WorkspaceLeaf, View } from 'obsidian';
+import { App, WorkspaceLeaf, View, TFile } from 'obsidian';
 import type HomeBasePlugin from '../main';
+import { HomeBaseType } from '../settings';
 
 export class NewTabService {
 	private app: App;
@@ -20,13 +21,24 @@ export class NewTabService {
 	}
 
 	/**
+	 * Track all existing leaves (for new tab detection)
+	 * This must be called even when startup is handled elsewhere
+	 */
+	trackExistingLeaves(): void {
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			this.existingLeaves.add(leaf);
+		});
+		// Mark startup as completed so layout change handler works
+		this.startupCompleted = true;
+		this.isStartup = false;
+	}
+
+	/**
 	 * Initialize the service - called when layout is ready
 	 */
 	initialize(): void {
 		// Track all existing leaves
-		this.app.workspace.iterateAllLeaves((leaf) => {
-			this.existingLeaves.add(leaf);
-		});
+		this.trackExistingLeaves();
 
 		// Handle startup
 		void this.handleStartup();
@@ -36,10 +48,12 @@ export class NewTabService {
 	 * Handle app startup - open home base if needed
 	 * Only called on actual app startup, not plugin reloads
 	 */
-	private async handleStartup(): Promise<void> {
+	private 	async handleStartup(): Promise<void> {
 		const settings = this.plugin.settings;
 
-		if (!settings.openOnStartup || !settings.homeBasePath) {
+		// Check if we should skip (openOnStartup is false, or no home base configured)
+		const homeBaseSettings = this.plugin.getHomeBaseSettings();
+		if (!settings.openOnStartup || (!homeBaseSettings.value && homeBaseSettings.type === HomeBaseType.File)) {
 			this.startupCompleted = true;
 			this.isStartup = false;
 			return;
@@ -47,7 +61,6 @@ export class NewTabService {
 
 		// Check for URL params (like obsidian://open links) - if present, skip everything
 		if (await this.hasUrlParams()) {
-			console.debug('Home Base: URL params detected, skipping startup open');
 			this.startupCompleted = true;
 			this.isStartup = false;
 			return;
@@ -55,14 +68,58 @@ export class NewTabService {
 
 		// Wait a bit for Obsidian to finish restoring the workspace
 		// This ensures all tabs are loaded before we try to close them
-		await new Promise(resolve => setTimeout(resolve, 300));
+		// Need longer delay to ensure workspace is fully restored
+		await new Promise(resolve => setTimeout(resolve, 500));
 
-		// Always call openHomeBase - it will handle closing tabs if keepExistingTabs is false
-		// even if the home base is already open
-		await this.plugin.homeService.openHomeBase({
-			replaceActiveLeaf: false,
-			runCommand: true,
-		});
+		// If keepExistingTabs is false, close ALL tabs first, then open home base
+		// This should ONLY happen on startup, not when manually opening
+		// We close everything first, then open fresh - don't try to find tabs to keep
+		// Exception: If hideReleaseNotes is OFF, preserve release notes tab
+		if (!settings.keepExistingTabs) {
+			// If hideReleaseNotes is OFF, we should preserve release notes tab
+			let exceptLeaf: WorkspaceLeaf | null = null;
+			if (!settings.hideReleaseNotes) {
+				// Try to find release notes tab
+				const allLeaves = this.app.workspace.getLeavesOfType('markdown');
+				for (const leaf of allLeaves) {
+					const view = leaf.view;
+					 
+					const markdownView = view as unknown as { file?: TFile; containerEl?: HTMLElement };
+					if (markdownView.file) {
+						const file = markdownView.file;
+					// Release notes are typically in config folder or have specific naming
+					// Check if it's a release notes tab by looking at the file path
+					const configDir = this.app.vault.configDir;
+					if (file.path.includes('release') || file.path.includes(configDir)) {
+							// Check if it's actually a release notes view
+							const container = markdownView.containerEl;
+							if (container && container.querySelector('.release-notes')) {
+								exceptLeaf = leaf;
+								break;
+							}
+						}
+					}
+				}
+			}
+			
+			// Close ALL tabs - don't try to keep any, just close everything (except release notes if applicable)
+			await this.plugin.homeService.closeAllLeavesExcept(exceptLeaf);
+			// Wait longer to ensure all detachments are processed
+			await new Promise(resolve => setTimeout(resolve, 200));
+		}
+
+		// On startup, use ghost tab if sticky icon is enabled, otherwise use normal openHomeBase
+		if (settings.showStickyHomeIcon) {
+			await this.plugin.homeService.openHomeBaseInGhostTab({
+				runCommand: true,
+			});
+		} else {
+			// Always call openHomeBase - it will open home base if not already open
+			await this.plugin.homeService.openHomeBase({
+				replaceActiveLeaf: false,
+				runCommand: true,
+			});
+		}
 
 		this.startupCompleted = true;
 		this.isStartup = false;
@@ -180,10 +237,25 @@ export class NewTabService {
 
 	/**
 	 * Check if a leaf is an empty tab
+	 * IMPORTANT: Only returns true if the leaf is truly empty (no file opened)
+	 * If a file is already opened in the leaf, it's not empty and should NOT be replaced
 	 */
 	private isEmptyTab(leaf: WorkspaceLeaf): boolean {
 		if (!leaf.view) return true;
-		return leaf.view.getViewType() === 'empty';
+		
+		// Check if view type is empty
+		if (leaf.view.getViewType() !== 'empty') {
+			return false;
+		}
+		
+		// Double-check: if the view has a state with a file, it's not empty
+		// This prevents replacing tabs that were just opened with files from explorer
+		const viewState = leaf.getViewState();
+		if (viewState && (viewState as { file?: string }).file) {
+			return false;
+		}
+		
+		return true;
 	}
 
 	/**

@@ -67,7 +67,7 @@ export class CommandSuggest extends AbstractInputSuggest<Command> {
 interface AppWithCommands extends App {
 	commands?: {
 		commands?: Record<string, Command>;
-		executeCommandById?: (commandId: string) => boolean;
+		executeCommandById?: (commandId: string) => boolean | Promise<void>;
 	};
 }
 

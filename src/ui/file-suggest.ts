@@ -124,3 +124,42 @@ export class FolderSuggest extends AbstractInputSuggest<TFolder> {
 		this.close();
 	}
 }
+
+/**
+ * Workspace suggester for selecting Obsidian workspaces
+ */
+export class WorkspaceSuggest extends AbstractInputSuggest<string> {
+	private inputEl: HTMLInputElement;
+
+	constructor(app: App, inputEl: HTMLInputElement) {
+		super(app, inputEl);
+		this.inputEl = inputEl;
+	}
+
+	getSuggestions(query: string): string[] {
+		 
+		const workspacesPlugin = this.app.internalPlugins?.plugins?.workspaces;
+		 
+		if (!workspacesPlugin?.enabled || !workspacesPlugin.instance?.workspaces) {
+			return [];
+		}
+		
+		 
+		const workspaces = Object.keys(workspacesPlugin.instance.workspaces);
+		const lowerQuery = query.toLowerCase();
+		
+		return workspaces.filter((workspace: string) => 
+			workspace.toLowerCase().includes(lowerQuery)
+		);
+	}
+
+	renderSuggestion(workspace: string, el: HTMLElement): void {
+		el.createEl('div', { text: workspace });
+	}
+
+	selectSuggestion(workspace: string): void {
+		this.inputEl.value = workspace;
+		this.inputEl.trigger('input');
+		this.close();
+	}
+}

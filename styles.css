@@ -3,6 +3,41 @@
  */
 
 /* ========================================
+   Icon Picker (matching iconic plugin)
+   ======================================== */
+
+.iconic-icon-picker .iconic-search-results {
+	overflow-x: scroll;
+}
+
+.iconic-icon-picker .iconic-search-results > .setting-item-info {
+	display: none;
+}
+
+.iconic-icon-picker .iconic-search-results > .setting-item-control {
+	justify-content: center;
+}
+
+.iconic-icon-picker .iconic-search-results:focus-visible {
+	box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+/* Search result icons */
+.iconic-icon-picker .iconic-search-result > * {
+	height: var(--icon-size);
+	--icon-size: calc(var(--icon-l) * 1.25);
+	--icon-stroke: calc(var(--icon-l-stroke-width) * 6/7);
+}
+
+.iconic-icon-picker .iconic-search-result.is-selected {
+	background-color: var(--background-modifier-hover);
+}
+
+.iconic-icon-picker .iconic-invisible {
+	visibility: hidden;
+}
+
+/* ========================================
    Sticky Home Icon (Desktop)
    ======================================== */
 
@@ -24,7 +59,7 @@
 	/* Position absolutely relative to workspace-tabs container */
 	position: absolute;
 	left: 4px; /* Position from left edge, accounting for container padding */
-	top: 4px; /* Align with tab bar with proper spacing */
+	top: 5px; /* Align with tab bar with proper spacing */
 	z-index: 10; /* Above tabs but not too high */
 	/* Prevent any layout shifts or animations */
 	will-change: auto;

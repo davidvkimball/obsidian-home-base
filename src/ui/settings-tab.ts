@@ -212,8 +212,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		generalGroup.addSetting((setting) => {
 			setting
 				.setName('View mode')
-				// eslint-disable-next-line obsidianmd/ui/sentence-case
-				.setDesc('How to open markdown and MDX files (canvas/base use native views)')
+				.setDesc('How to open Markdown files')
 				.addDropdown((dropdown) => {
 					for (const [value, label] of Object.entries(VIEW_MODE_OPTIONS)) {
 						dropdown.addOption(value, label);

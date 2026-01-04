@@ -23,7 +23,6 @@ declare module 'obsidian' {
 				'daily-notes'?: {
 					enabled?: boolean;
 					instance?: {
-						// eslint-disable-next-line no-undef
 						getDailyNotePath?: (date: moment.Moment) => string;
 					};
 				};
@@ -35,11 +34,8 @@ declare module 'obsidian' {
 		plugins?: {
 			plugins?: {
 				'periodic-notes'?: {
-					// eslint-disable-next-line no-undef
 					getPeriodicNote?: (noun: 'day' | 'week' | 'month' | 'year', date: moment.Moment) => TFile | null;
-					// eslint-disable-next-line no-undef
 					createPeriodicNote?: (noun: 'day' | 'week' | 'month' | 'year', date: moment.Moment) => Promise<TFile>;
-					// eslint-disable-next-line no-undef
 					openPeriodicNote?: (noun: 'day' | 'week' | 'month' | 'year', date: moment.Moment, opts?: { inNewSplit?: boolean; calendarSet?: string }) => Promise<void>;
 					cache?: {
 						initialize?: () => void;
@@ -62,7 +58,6 @@ declare module 'obsidian' {
 							};
 						};
 						autoCreate?: () => Promise<void>;
-						// eslint-disable-next-line no-undef
 						get?: (date: moment.Moment) => TFile | null;
 						getNotePath?: (file: TFile) => string;
 					}>;
@@ -87,7 +82,6 @@ declare global {
 			action?: string;
 			[key: string]: unknown;
 		};
-		// eslint-disable-next-line no-undef
 		moment?: typeof moment;
 	}
 }

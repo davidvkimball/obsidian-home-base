@@ -287,9 +287,6 @@ export class NewTabService {
 		// Get new tab settings (falls back to home base if useDifferentFileForNewTab is disabled)
 		const newTabSettings = this.plugin.getNewTabSettings();
 		
-		// Log for debugging
-		console.log('[Home Base] Replacing new tab with:', newTabSettings.type, newTabSettings.value);
-		
 		// Open file in this leaf using the new tab settings
 		// Pass isNewTab=true to skip pinning/ghost tab logic - new tabs should work independently
 		const success = await this.plugin.homeService.openInLeafWithSettings(leaf, newTabSettings, true);

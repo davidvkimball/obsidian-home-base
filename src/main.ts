@@ -406,10 +406,10 @@ export default class HomeBasePlugin extends Plugin {
 		// Patch the method
 		 
 		this.app.runOpeningBehavior = async (path: string) => {
-			const openInitially = (
-				this.settings.openOnStartup && 
-				!(await this.hasUrlParams())
-			);
+		const openInitially = (
+			this.settings.openOnStartup && 
+			!this.hasUrlParams()
+		);
 			
 			if (openInitially) {
 				// Mark that we've run opening behavior
@@ -576,7 +576,7 @@ export default class HomeBasePlugin extends Plugin {
 	/**
 	 * Check if URL params indicate a file/workspace should be opened (skip homepage)
 	 */
-	private async hasUrlParams(): Promise<boolean> {
+	private hasUrlParams(): boolean {
 		// Check for URL params that indicate a specific file/workspace should be opened
 		// This prevents homepage from opening when Obsidian is opened with a specific file
 		if (typeof window !== 'undefined' && window.OBS_ACT) {

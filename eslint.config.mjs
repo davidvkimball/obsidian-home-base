@@ -35,7 +35,8 @@ export default defineConfig([
         isBoolean: "readonly",
         nextFrame: "readonly",
         ready: "readonly",
-        sleep: "readonly"
+        sleep: "readonly",
+        moment: "readonly"
       }
     },
     // Custom rule overrides

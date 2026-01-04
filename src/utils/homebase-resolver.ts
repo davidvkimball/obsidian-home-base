@@ -85,9 +85,7 @@ export function trimFile(file: TFile): string {
 interface PeriodicInfo {
 	noun: string;
 	adjective: string;
-	// eslint-disable-next-line no-undef
 	create: (date: moment.Moment) => Promise<TFile>;
-	// eslint-disable-next-line no-undef
 	get: (date: moment.Moment, all: Record<string, TFile>) => TFile;
 	getAll: () => Record<string, TFile>;
 }
@@ -145,7 +143,6 @@ async function getPeriodicNote(kind: HomeBaseType, plugin: HomeBasePlugin): Prom
 	}
 	
 	// Get the current date for the period (like homepage plugin)
-	// eslint-disable-next-line no-undef
 	const date = window.moment().startOf(info.noun as moment.unitOfTime.StartOf);
 	
 	// For daily notes, try core daily notes plugin first (like homepage plugin)
@@ -162,9 +159,7 @@ async function getPeriodicNote(kind: HomeBaseType, plugin: HomeBasePlugin): Prom
 	
 	// Use periodic notes plugin (like homepage plugin)
 	const periodicNotesPlugin = plugin.app.plugins?.plugins?.['periodic-notes'] as {
-		// eslint-disable-next-line no-undef
 		getPeriodicNote?: (noun: 'day' | 'week' | 'month' | 'year', date: moment.Moment) => TFile | null;
-		// eslint-disable-next-line no-undef
 		createPeriodicNote?: (noun: 'day' | 'week' | 'month' | 'year', date: moment.Moment) => Promise<TFile>;
 		cache?: {
 			initialize?: () => void;
@@ -228,8 +223,19 @@ async function getJournalNote(journalName: string, plugin: HomeBasePlugin): Prom
 	if (!journals) return null;
 	
 	try {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-		const journal = journals.journals?.find((j: any) => j.name === journalName);
+		// Accessing internal plugin API - structure not fully typed
+		type JournalEntry = {
+			name?: string;
+			config?: {
+				value?: {
+					autoCreate?: boolean;
+				};
+			};
+			autoCreate?: () => Promise<void>;
+			get?: (date: moment.Moment) => TFile | null;
+			getNotePath?: (file: TFile) => string;
+		};
+		const journal = (journals.journals as JournalEntry[] | undefined)?.find((j) => j.name === journalName);
 		if (!journal) return null;
 		
 		// Trigger auto-create if needed

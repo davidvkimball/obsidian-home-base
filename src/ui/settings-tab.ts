@@ -319,6 +319,145 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							});
 					});
 			});
+
+			// Use different file for new tabs toggle
+			tabGroup.addSetting((setting) => {
+				setting
+					.setName('Use different file for new tabs')
+					.setDesc('Configure a different file to open for new tabs (instead of home base)')
+					.addToggle((toggle) => {
+						toggle
+							.setValue(this.plugin.settings.useDifferentFileForNewTab)
+							.onChange(async (value) => {
+								this.plugin.settings.useDifferentFileForNewTab = value;
+								await this.plugin.saveSettings();
+								
+								// Preserve scroll position before re-rendering
+								const scrollContainer = containerEl.closest('.vertical-tab-content') || 
+														containerEl.closest('.settings-content') || 
+														containerEl.parentElement;
+								const scrollTop = scrollContainer?.scrollTop || 0;
+								
+								this.display(); // Re-render to show/hide dependent settings
+								
+								// Restore scroll position after rendering
+								requestAnimationFrame(() => {
+									if (scrollContainer) {
+										scrollContainer.scrollTop = scrollTop;
+									}
+								});
+							});
+					});
+			});
+
+			// Show new tab configuration if enabled (always desktop settings)
+			if (this.plugin.settings.useDifferentFileForNewTab) {
+				const desktopType = this.plugin.settings.newTabType || HomeBaseType.File;
+				const desktopValue = this.plugin.settings.newTabValue || '';
+
+				// New tab type dropdown
+				tabGroup.addSetting((setting) => {
+					setting
+						.setName('New tab type')
+						.setDesc('What to open for new tabs')
+						.addDropdown((dropdown) => {
+							let pluginDisabled = false;
+							
+							for (const type of Object.values(HomeBaseType)) {
+								if (!this.plugin.hasRequiredPlugin(type)) {
+									// If current type is disabled, mark it but still allow it
+									if (type === desktopType) {
+										pluginDisabled = true;
+										dropdown.addOption(type, type);
+									} else {
+										// Add disabled option
+										dropdown.selectEl.createEl('option', { 
+											text: type, 
+											attr: { disabled: 'true' } 
+										});
+										continue;
+									}
+								} else {
+									dropdown.addOption(type, type);
+								}
+							}
+							
+							dropdown
+								.setValue(desktopType)
+								.onChange(async (value) => {
+									this.plugin.settings.newTabType = value as HomeBaseType;
+									await this.plugin.saveSettings();
+									
+									// Re-render to show/hide value input
+									const scrollContainer = containerEl.closest('.vertical-tab-content') || 
+															containerEl.closest('.settings-content') || 
+															containerEl.parentElement;
+									const scrollTop = scrollContainer?.scrollTop || 0;
+									this.display();
+									requestAnimationFrame(() => {
+										if (scrollContainer) {
+											scrollContainer.scrollTop = scrollTop;
+										}
+									});
+								});
+							
+							// Show warning if current type requires a disabled plugin
+							if (pluginDisabled) {
+								setting.descEl.createDiv({
+									text: 'The plugin required for this new tab type isn\'t available.',
+									cls: 'mod-warning'
+								});
+							}
+						});
+				});
+
+				// Value input (conditional on type)
+				if (!UNCHANGEABLE_TYPES.includes(desktopType)) {
+					tabGroup.addSetting((setting) => {
+						let desc = '';
+						let placeholder = '';
+
+						if (desktopType === HomeBaseType.File) {
+							desc = 'The file to open for new tabs (supports .md, .mdx, .canvas, .base)';
+							placeholder = 'Path to new tab file';
+						} else if (desktopType === HomeBaseType.Workspace) {
+							desc = 'The workspace to load for new tabs';
+							placeholder = 'Workspace name';
+						} else if (desktopType === HomeBaseType.RandomFolder) {
+							desc = 'The folder to pick a random file from for new tabs';
+							placeholder = 'Folder path';
+						} else if (desktopType === HomeBaseType.Journal) {
+							desc = 'The journal name for new tabs';
+							placeholder = 'Journal name';
+						}
+
+						setting
+							.setName(desktopType === HomeBaseType.File ? 'New tab file' : 
+									desktopType === HomeBaseType.Workspace ? 'New tab workspace' :
+									desktopType === HomeBaseType.RandomFolder ? 'New tab folder' :
+									desktopType === HomeBaseType.Journal ? 'New tab journal' : 'New tab value')
+							.setDesc(desc)
+							.addText((text) => {
+								// Add appropriate suggester
+								if (desktopType === HomeBaseType.File) {
+									new FilePathSuggest(this.app, text.inputEl);
+								} else if (desktopType === HomeBaseType.Workspace) {
+									new WorkspaceSuggest(this.app, text.inputEl);
+								} else if (desktopType === HomeBaseType.RandomFolder) {
+									new FolderSuggest(this.app, text.inputEl);
+								}
+								
+								text
+									.setPlaceholder(placeholder)
+									.setValue(desktopValue || '')
+									.onChange(async (value) => {
+										this.plugin.settings.newTabValue = value;
+										await this.plugin.saveSettings();
+									});
+							});
+					});
+				}
+			}
 		}
 
 		// Legacy "Keep existing tabs" - kept for backward compatibility but hidden
@@ -404,20 +543,6 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 			});
 		}
 
-		uiGroup.addSetting((setting) => {
-			setting
-				.setName('Replace mobile new tab button')
-				.setDesc('Change the mobile new tab button to a home icon')
-				.addToggle((toggle) => {
-					toggle
-						.setValue(this.plugin.settings.replaceMobileNewTab)
-						.onChange(async (value) => {
-							this.plugin.settings.replaceMobileNewTab = value;
-							await this.plugin.saveSettings();
-							this.plugin.updateMobileButton();
-						});
-				});
-		});
 
 		// Mobile Settings
 		const mobileGroup = createSettingsGroup(containerEl, 'Mobile', 'home-base');
@@ -552,6 +677,159 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 								});
 						});
 				});
+			}
+		}
+
+		// Mobile new tab settings (only show if "Use different file for new tabs" is enabled)
+		if (this.plugin.settings.useDifferentFileForNewTab) {
+			// Replace mobile new tab button
+			mobileGroup.addSetting((setting) => {
+				setting
+					.setName('Replace mobile new tab button')
+					.setDesc('Change the mobile new tab button to a home icon')
+					.addToggle((toggle) => {
+						toggle
+							.setValue(this.plugin.settings.replaceMobileNewTab)
+							.onChange(async (value) => {
+								this.plugin.settings.replaceMobileNewTab = value;
+								await this.plugin.saveSettings();
+								this.plugin.updateMobileButton();
+							});
+					});
+			});
+
+			// Separate mobile new tab toggle
+			mobileGroup.addSetting((setting) => {
+				setting
+					.setName('Separate mobile new tab')
+					.setDesc('Use a different new tab file on mobile devices')
+					.addToggle((toggle) => {
+						toggle
+							.setValue(this.plugin.settings.newTabSeparateMobile)
+							.onChange(async (value) => {
+								this.plugin.settings.newTabSeparateMobile = value;
+								await this.plugin.saveSettings();
+								
+								// Re-render to show mobile settings
+								const scrollContainer = containerEl.closest('.vertical-tab-content') || 
+														containerEl.closest('.settings-content') || 
+														containerEl.parentElement;
+								const scrollTop = scrollContainer?.scrollTop || 0;
+								this.display();
+								requestAnimationFrame(() => {
+									if (scrollContainer) {
+										scrollContainer.scrollTop = scrollTop;
+									}
+								});
+							});
+					});
+			});
+
+			// Show mobile-specific new tab settings if separate mobile is enabled
+			if (this.plugin.settings.newTabSeparateMobile) {
+				const mobileType = this.plugin.settings.mobileNewTabType || HomeBaseType.File;
+				const mobileValue = this.plugin.settings.mobileNewTabValue || '';
+
+				// Mobile new tab type dropdown
+				mobileGroup.addSetting((setting) => {
+					setting
+						.setName('Mobile new tab type')
+						.setDesc('What to open for new tabs on mobile')
+						.addDropdown((dropdown) => {
+							let pluginDisabled = false;
+							
+							for (const type of Object.values(HomeBaseType)) {
+								if (!this.plugin.hasRequiredPlugin(type)) {
+									// If current type is disabled, mark it but still allow it
+									if (type === mobileType) {
+										pluginDisabled = true;
+										dropdown.addOption(type, type);
+									} else {
+										// Add disabled option
+										dropdown.selectEl.createEl('option', { 
+											text: type, 
+											attr: { disabled: 'true' } 
+										});
+										continue;
+									}
+								} else {
+									dropdown.addOption(type, type);
+								}
+							}
+							
+							dropdown
+								.setValue(mobileType)
+								.onChange(async (value) => {
+									this.plugin.settings.mobileNewTabType = value as HomeBaseType;
+									await this.plugin.saveSettings();
+									
+									const scrollContainer = containerEl.closest('.vertical-tab-content') || 
+															containerEl.closest('.settings-content') || 
+															containerEl.parentElement;
+									const scrollTop = scrollContainer?.scrollTop || 0;
+									this.display();
+									requestAnimationFrame(() => {
+										if (scrollContainer) {
+											scrollContainer.scrollTop = scrollTop;
+										}
+									});
+								});
+							
+							// Show warning if current type requires a disabled plugin
+							if (pluginDisabled) {
+								setting.descEl.createDiv({
+									text: 'The plugin required for this mobile new tab type isn\'t available.',
+									cls: 'mod-warning'
+								});
+							}
+						});
+				});
+
+				// Mobile value input (conditional on type)
+				if (!UNCHANGEABLE_TYPES.includes(mobileType)) {
+					mobileGroup.addSetting((setting) => {
+						let desc = '';
+						let placeholder = '';
+
+						if (mobileType === HomeBaseType.File) {
+							desc = 'The file to open for new tabs on mobile';
+							placeholder = 'Path to mobile new tab file';
+						} else if (mobileType === HomeBaseType.Workspace) {
+							desc = 'The workspace to load for new tabs on mobile';
+							placeholder = 'Workspace name';
+						} else if (mobileType === HomeBaseType.RandomFolder) {
+							desc = 'The folder to pick a random file from for new tabs on mobile';
+							placeholder = 'Folder path';
+						} else if (mobileType === HomeBaseType.Journal) {
+							desc = 'The journal name for new tabs on mobile';
+							placeholder = 'Journal name';
+						}
+
+						setting
+							.setName(mobileType === HomeBaseType.File ? 'Mobile new tab file' : 
+									mobileType === HomeBaseType.Workspace ? 'Mobile new tab workspace' :
+									mobileType === HomeBaseType.RandomFolder ? 'Mobile new tab folder' :
+									mobileType === HomeBaseType.Journal ? 'Mobile new tab journal' : 'Mobile new tab value')
+							.setDesc(desc)
+							.addText((text) => {
+								if (mobileType === HomeBaseType.File) {
+									new FilePathSuggest(this.app, text.inputEl);
+								} else if (mobileType === HomeBaseType.Workspace) {
+									new WorkspaceSuggest(this.app, text.inputEl);
+								} else if (mobileType === HomeBaseType.RandomFolder) {
+									new FolderSuggest(this.app, text.inputEl);
+								}
+								
+								text
+									.setPlaceholder(placeholder)
+									.setValue(mobileValue || '')
+									.onChange(async (value) => {
+										this.plugin.settings.mobileNewTabValue = value;
+										await this.plugin.saveSettings();
+									});
+							});
+					});
+				}
 			}
 		}
 

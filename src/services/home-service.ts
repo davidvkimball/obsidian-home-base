@@ -396,30 +396,40 @@ export class HomeBaseService {
 	 */
 	async openInLeaf(leaf: WorkspaceLeaf): Promise<boolean> {
 		const homeBaseSettings = this.plugin.getHomeBaseSettings();
-		
+		return this.openInLeafWithSettings(leaf, homeBaseSettings);
+	}
 
+	/**
+	 * Open a file in an empty leaf with custom settings
+	 * @param leaf The leaf to open the file in
+	 * @param settings Settings object with type and value
+	 * @param isNewTab Whether this is for new tab replacement (skips pinning/ghost tab logic)
+	 */
+	async openInLeafWithSettings(leaf: WorkspaceLeaf, settings: { type: HomeBaseType; value: string }, isNewTab: boolean = false): Promise<boolean> {
 		// Handle non-file types
-		if (homeBaseSettings.type === HomeBaseType.Workspace) {
-			await this.openWorkspace(homeBaseSettings.value);
+		if (settings.type === HomeBaseType.Workspace) {
+			await this.openWorkspace(settings.value);
 			return true;
 		}
-		if (homeBaseSettings.type === HomeBaseType.Graph) {
+		if (settings.type === HomeBaseType.Graph) {
 			await this.openGraph();
 			return true;
 		}
-		if (homeBaseSettings.type === HomeBaseType.None) {
+		if (settings.type === HomeBaseType.None) {
 			this.runCommandOnOpen();
 			return true;
 		}
 
 		// Resolve the actual file path based on type
 		const resolvedPath = await computeHomeBasePath(
-			homeBaseSettings.type,
-			homeBaseSettings.value,
+			settings.type,
+			settings.value,
 			this.plugin
 		);
 		
 		if (!resolvedPath) {
+			// Log warning for debugging - file path couldn't be resolved
+			console.warn('[Home Base] Could not resolve path for new tab:', settings.type, settings.value);
 			return false;
 		}
 
@@ -440,9 +450,21 @@ export class HomeBaseService {
 		}
 		
 		if (!file) {
+			// Log warning for debugging - file not found
+			console.warn('[Home Base] File not found for new tab:', resolvedPath);
 			return false;
 		}
 
+		// For new tab replacement: just open the file, no pinning, no ghost tab logic
+		// Multiple tabs with the same file are fine
+		if (isNewTab) {
+			await leaf.openFile(file);
+			await this.configureView(leaf, file);
+			this.runCommandOnOpen();
+			return true;
+		}
+
+		// For home base: use ghost tab/pinning logic (existing behavior)
 		// If sticky icon is enabled AND this is a truly empty tab (not a file opened from explorer),
 		// check if there's a ghost tab and merge with it.
 		// This ensures that when you close the last tab and Obsidian creates a new empty one,
@@ -452,12 +474,12 @@ export class HomeBaseService {
 		
 		if (this.plugin.settings.showStickyHomeIcon && isTrulyEmpty) {
 			// Random types and periodic notes: don't pin, but can still merge
-			const isRandom = homeBaseSettings.type === HomeBaseType.Random || 
-			                 homeBaseSettings.type === HomeBaseType.RandomFolder ||
-			                 homeBaseSettings.type === HomeBaseType.DailyNote ||
-			                 homeBaseSettings.type === HomeBaseType.WeeklyNote ||
-			                 homeBaseSettings.type === HomeBaseType.MonthlyNote ||
-			                 homeBaseSettings.type === HomeBaseType.YearlyNote;
+			const isRandom = settings.type === HomeBaseType.Random || 
+			                 settings.type === HomeBaseType.RandomFolder ||
+			                 settings.type === HomeBaseType.DailyNote ||
+			                 settings.type === HomeBaseType.WeeklyNote ||
+			                 settings.type === HomeBaseType.MonthlyNote ||
+			                 settings.type === HomeBaseType.YearlyNote;
 			const ghostTab = this.findGhostTab(file, isRandom);
 			
 			if (ghostTab) {

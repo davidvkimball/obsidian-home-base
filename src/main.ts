@@ -296,6 +296,36 @@ export default class HomeBasePlugin extends Plugin {
 	}
 
 	/**
+	 * Get the active new tab settings (mobile or desktop)
+	 * Falls back to home base settings if useDifferentFileForNewTab is disabled
+	 */
+	getNewTabSettings(): {
+		type: HomeBaseType;
+		value: string;
+		path: string; // Legacy compatibility
+	} {
+		// If not using different file for new tab, fall back to home base settings
+		if (!this.settings.useDifferentFileForNewTab) {
+			return this.getHomeBaseSettings();
+		}
+
+		// Use new tab settings, checking for mobile if separate mobile is enabled
+		if (this.settings.newTabSeparateMobile && Platform.isMobile) {
+			return {
+				type: this.settings.mobileNewTabType || HomeBaseType.File,
+				value: this.settings.mobileNewTabValue || '',
+				path: this.settings.mobileNewTabValue || '',
+			};
+		}
+		
+		return {
+			type: this.settings.newTabType || HomeBaseType.File,
+			value: this.settings.newTabValue || '',
+			path: this.settings.newTabValue || '',
+		};
+	}
+
+	/**
 	 * Save plugin settings
 	 */
 	async saveSettings(): Promise<void> {

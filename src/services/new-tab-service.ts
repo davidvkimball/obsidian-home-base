@@ -273,7 +273,7 @@ export class NewTabService {
 	}
 
 	/**
-	 * Replace an empty tab with the home base
+	 * Replace an empty tab with the home base or new tab file
 	 */
 	private async replaceEmptyTab(leaf: WorkspaceLeaf): Promise<void> {
 		// Small delay to handle race conditions with other plugins
@@ -284,8 +284,19 @@ export class NewTabService {
 			return;
 		}
 
-		// Open home base in this leaf
-		await this.plugin.homeService.openInLeaf(leaf);
+		// Get new tab settings (falls back to home base if useDifferentFileForNewTab is disabled)
+		const newTabSettings = this.plugin.getNewTabSettings();
+		
+		// Log for debugging
+		console.log('[Home Base] Replacing new tab with:', newTabSettings.type, newTabSettings.value);
+		
+		// Open file in this leaf using the new tab settings
+		// Pass isNewTab=true to skip pinning/ghost tab logic - new tabs should work independently
+		const success = await this.plugin.homeService.openInLeafWithSettings(leaf, newTabSettings, true);
+		
+		if (!success) {
+			console.warn('[Home Base] Failed to open new tab file');
+		}
 	}
 
 	/**

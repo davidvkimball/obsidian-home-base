@@ -37,6 +37,12 @@ export interface HomeBaseSettings {
 	replaceNewTab: boolean;
 	newTabMode: NewTabMode;
 	keepExistingTabs: boolean; // Legacy - maps to openMode: 'replace-all' vs 'retain'
+	useDifferentFileForNewTab: boolean; // Use separate new tab settings vs home base
+	newTabType: HomeBaseType;
+	newTabValue: string;
+	newTabSeparateMobile: boolean;
+	mobileNewTabType: HomeBaseType;
+	mobileNewTabValue: string;
 
 	// UI Features (off by default)
 	showStickyHomeIcon: boolean;
@@ -73,6 +79,12 @@ export const DEFAULT_SETTINGS: HomeBaseSettings = {
 	replaceNewTab: false,
 	newTabMode: 'only-when-empty', // Default: only replace when no tabs are open
 	keepExistingTabs: true,
+	useDifferentFileForNewTab: false,
+	newTabType: HomeBaseType.File,
+	newTabValue: '',
+	newTabSeparateMobile: false,
+	mobileNewTabType: HomeBaseType.File,
+	mobileNewTabValue: '',
 
 	// UI Features
 	showStickyHomeIcon: false,

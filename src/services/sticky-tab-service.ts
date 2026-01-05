@@ -22,12 +22,21 @@ interface StickyIconElement extends HTMLElement {
 	_containerObserver?: MutationObserver;
 }
 
+/**
+ * Extended HTMLElement interface for tab header with home base properties
+ */
+interface TabHeaderElement extends HTMLElement {
+	_homeBaseParent?: HTMLElement;
+	_homeBaseNextSibling?: Node | null;
+}
+
 export class StickyTabService {
 	private plugin: HomeBasePlugin;
 	private stickyIconEl: StickyIconElement | null = null;
 	private layoutChangeHandler: (() => void) | null = null;
 	private tabHeaderUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
 	private sidebarObserver: MutationObserver | null = null;
+	private tabHeaderObserver: MutationObserver | null = null;
 
 	constructor(plugin: HomeBasePlugin) {
 		this.plugin = plugin;
@@ -116,7 +125,19 @@ export class StickyTabService {
 			
 			const menu = new Menu();
 			
-			// Add Change icon option
+			// Add Close home base option (first)
+			menu.addItem((item) => {
+				item
+					.setTitle('Close home base')
+					.setIcon('x')
+					.onClick(() => {
+						// Actually close it (including ghost tab if sticky icon is enabled)
+						// If new tab replacement is enabled, it will reopen when you create a new tab
+						void this.closeHomeBase(true);
+					});
+			});
+			
+			// Add Change icon option (second)
 			menu.addItem((item) => {
 				item
 					.setTitle('Change icon')
@@ -139,40 +160,39 @@ export class StickyTabService {
 						picker.open();
 					});
 			});
-			
-			menu.addItem((item) => {
-				item
-					.setTitle('Close home base')
-					.setIcon('x')
-					.onClick(() => {
-						void this.closeHomeBase();
-					});
-			});
 			menu.showAtMouseEvent(e);
 		});
 
 		// Function to ensure icon is in the right place
-		// Insert it into the workspace-tabs container so it's positioned relative to tabs
+		// Insert it into the workspace-tab-header-container-inner so it's part of the tab bar structure
+		// This makes it automatically hide when plugins/themes hide the tab bar
 		const ensureIconInPlace = () => {
 			if (!this.stickyIconEl) return;
 
 			const mainWorkspace = document.querySelector('.workspace-split.mod-vertical.mod-root');
 			if (!mainWorkspace) return;
 
-			// Find the workspace-tabs container (sibling of workspace-tab-container)
-			const workspaceTabs = mainWorkspace.querySelector('.workspace-tabs');
-			if (!workspaceTabs) return;
+			// Find the workspace-tab-header-container-inner (inside the tab container)
+			const tabHeaderContainerInner = mainWorkspace.querySelector('.workspace-tab-header-container-inner');
+			if (!tabHeaderContainerInner) return;
 
-			// Check if icon is already in the tabs container
-			const existingIcon = workspaceTabs.querySelector(`.${STICKY_ICON_CLASS}`);
-			if (existingIcon === this.stickyIconEl) {
+			// Remove any duplicate icons first (in case mutation observer or other code created them)
+			const allIcons = tabHeaderContainerInner.querySelectorAll(`.${STICKY_ICON_CLASS}`);
+			allIcons.forEach((icon) => {
+				if (icon !== this.stickyIconEl) {
+					icon.remove();
+				}
+			});
+
+			// Check if our icon is already in the container
+			if (tabHeaderContainerInner.contains(this.stickyIconEl)) {
 				// Already in place, nothing to do
 				return;
 			}
 
-			// Icon is missing - insert it into the workspace-tabs container
-			// This way it's positioned relative to the tab bar but won't move with tabs
-			workspaceTabs.appendChild(this.stickyIconEl);
+			// Icon is missing - prepend it to the tab header container inner
+			// This makes it part of the tab bar structure, so it hides automatically when tabs are hidden
+			tabHeaderContainerInner.insertBefore(this.stickyIconEl, tabHeaderContainerInner.firstChild);
 
 			// Update active state after insertion
 			this.updateActiveState();
@@ -223,20 +243,28 @@ export class StickyTabService {
 			);
 		}
 
-		// Also watch for when workspace-tabs container is added back (after all tabs closed)
+		// Also watch for when workspace-tab-header-container-inner is added back (after all tabs closed)
 		// Use a MutationObserver on the workspace split to catch container recreation
 		const mainWorkspace = document.querySelector('.workspace-split.mod-vertical.mod-root');
 		if (mainWorkspace) {
 			const containerObserver = new MutationObserver(() => {
 				if (!this.stickyIconEl || !this.plugin.settings.showStickyHomeIcon) return;
 				
-				// Check if workspace-tabs container exists and icon is missing
-				const workspaceTabs = mainWorkspace.querySelector('.workspace-tabs');
-				if (workspaceTabs) {
-					const existingIcon = workspaceTabs.querySelector(`.${STICKY_ICON_CLASS}`);
-					if (!existingIcon || existingIcon !== this.stickyIconEl) {
+				// Check if tab header container inner exists and icon is missing
+				const tabHeaderContainerInner = mainWorkspace.querySelector('.workspace-tab-header-container-inner');
+				if (tabHeaderContainerInner) {
+					// Remove any duplicate icons first
+					const allIcons = tabHeaderContainerInner.querySelectorAll(`.${STICKY_ICON_CLASS}`);
+					allIcons.forEach((icon) => {
+						if (icon !== this.stickyIconEl) {
+							icon.remove();
+						}
+					});
+
+					// Only re-insert if our icon is not already in the container
+					if (!tabHeaderContainerInner.contains(this.stickyIconEl)) {
 						// Container exists but icon is missing - re-insert immediately
-						workspaceTabs.appendChild(this.stickyIconEl);
+						tabHeaderContainerInner.insertBefore(this.stickyIconEl, tabHeaderContainerInner.firstChild);
 						this.updateActiveState();
 					}
 				}
@@ -244,11 +272,114 @@ export class StickyTabService {
 
 			containerObserver.observe(mainWorkspace, {
 				childList: true,
-				subtree: false, // Only watch direct children
+				subtree: true, // Watch subtree to catch tab container recreation
 			});
 
 			// Store observer so we can clean it up
 			this.stickyIconEl._containerObserver = containerObserver;
+		}
+
+		// Set up MutationObserver to watch for new tab headers and remove ghost tabs immediately
+		this.setupTabHeaderObserver();
+	}
+
+	/**
+	 * Set up MutationObserver to watch for tab header changes and remove ghost tabs immediately
+	 * This prevents the flash when tabs are opened/closed
+	 */
+	private setupTabHeaderObserver(): void {
+		if (this.tabHeaderObserver) {
+			return; // Already set up
+		}
+
+		// Find all tab header containers
+		const tabContainers = document.querySelectorAll('.workspace-tab-header-container-inner');
+		
+		if (tabContainers.length === 0) {
+			// Try again after a short delay if containers don't exist yet
+			setTimeout(() => this.setupTabHeaderObserver(), 100);
+			return;
+		}
+
+		this.tabHeaderObserver = new MutationObserver((mutations) => {
+			// Only process if settings are enabled
+			if (!this.plugin.settings.showStickyHomeIcon || !this.plugin.settings.hideHomeTabHeader) {
+				return;
+			}
+
+			const homeBasePath = this.plugin.settings.homeBasePath;
+			if (!homeBasePath) return;
+
+			// Check if any new tab headers were added
+			let hasNewHeaders = false;
+			for (const mutation of mutations) {
+				if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+					for (const node of Array.from(mutation.addedNodes)) {
+						if (node instanceof HTMLElement && node.classList.contains('workspace-tab-header')) {
+							hasNewHeaders = true;
+							break;
+						}
+					}
+				}
+				if (hasNewHeaders) break;
+			}
+
+			if (hasNewHeaders) {
+				// Immediately remove any ghost tab headers that appeared
+				this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+					const isHomeBase = leafHasFile(leaf, homeBasePath);
+					if (!isHomeBase) return;
+					
+					const viewState = leaf.getViewState();
+					const isGhostTab = viewState.pinned === true && isHomeBase;
+					
+					if (isGhostTab) {
+						const tabHeader = this.getTabHeaderForLeaf(leaf);
+						if (tabHeader && tabHeader.parentElement) {
+							const parent = tabHeader.parentElement;
+							if (parent && parent.classList.contains('workspace-tab-header-container-inner')) {
+								const tabHeaderExtended = tabHeader as TabHeaderElement;
+								// Only remove if not already removed
+								if (parent.contains(tabHeader)) {
+									tabHeaderExtended._homeBaseParent = parent;
+									tabHeaderExtended._homeBaseNextSibling = tabHeader.nextSibling;
+									tabHeader.remove();
+								}
+							}
+						}
+					}
+				});
+			}
+		});
+
+		// Observe all tab header containers
+		tabContainers.forEach((container) => {
+			this.tabHeaderObserver?.observe(container, {
+				childList: true,
+				subtree: false
+			});
+		});
+
+		// Also watch for new containers being added
+		const workspaceObserver = new MutationObserver(() => {
+			const newContainers = document.querySelectorAll('.workspace-tab-header-container-inner');
+			newContainers.forEach((container) => {
+				if (this.tabHeaderObserver) {
+					// Re-observe to catch new containers
+					this.tabHeaderObserver.observe(container, {
+						childList: true,
+						subtree: false
+					});
+				}
+			});
+		});
+
+		const mainWorkspace = document.querySelector('.workspace-split.mod-vertical.mod-root');
+		if (mainWorkspace) {
+			workspaceObserver.observe(mainWorkspace, {
+				childList: true,
+				subtree: true
+			});
 		}
 	}
 
@@ -276,6 +407,12 @@ export class StickyTabService {
 		if (this.sidebarObserver) {
 			this.sidebarObserver.disconnect();
 			this.sidebarObserver = null;
+		}
+
+		// Disconnect tab header observer
+		if (this.tabHeaderObserver) {
+			this.tabHeaderObserver.disconnect();
+			this.tabHeaderObserver = null;
 		}
 
 		if (this.stickyIconEl) {
@@ -334,27 +471,22 @@ export class StickyTabService {
 
 	/**
 	 * Update icon position based on sidebar state
+	 * Note: With inline positioning, icon flows naturally with tabs, so no special positioning needed
 	 */
 	updateIconPositionForSidebar(): void {
-		if (!this.stickyIconEl) return;
-		
-		const isCollapsed = this.isLeftSidebarCollapsed();
-		const mainWorkspace = document.querySelector('.workspace-split.mod-vertical.mod-root');
-		
-		// Use CSS class instead of inline styles
-		if (isCollapsed) {
-			this.stickyIconEl.classList.add('home-base-sticky-icon-sidebar-collapsed');
-			// Adjust tab container padding when sidebar is collapsed
-			if (mainWorkspace) {
-				mainWorkspace.classList.add('home-base-sidebar-collapsed');
-			}
-		} else {
-			this.stickyIconEl.classList.remove('home-base-sticky-icon-sidebar-collapsed');
-			// Remove collapsed padding adjustment
-			if (mainWorkspace) {
-				mainWorkspace.classList.remove('home-base-sidebar-collapsed');
-			}
-		}
+		// Icon now flows naturally with tabs, no special positioning needed
+		// This method is kept for potential future use but currently does nothing
+	}
+
+	/**
+	 * Update icon visibility based on tab bar visibility
+	 * REMOVED: JavaScript-based visibility checking was causing issues
+	 * Now relies entirely on CSS which is more reliable
+	 */
+	updateIconVisibility(): void {
+		// Do nothing - let CSS handle all visibility
+		// The icon is inside the tab container, so it will hide automatically
+		// when the container is hidden by any theme/plugin
 	}
 
 	/**
@@ -391,6 +523,15 @@ export class StickyTabService {
 	}
 
 	/**
+	 * Watch for tab bar visibility changes (Oxygen theme auto-hide, focus mode, etc.)
+	 * REMOVED: No longer needed - CSS handles all visibility automatically
+	 */
+	private watchTabBarVisibility(): void {
+		// Do nothing - CSS handles all visibility
+		// The icon is inside the tab container, so it hides automatically
+	}
+
+	/**
 	 * Toggle the sticky icon visibility
 	 */
 	async toggle(): Promise<void> {
@@ -404,19 +545,17 @@ export class StickyTabService {
 	/**
 	 * Update tab headers to hide/show ghost tab
 	 * Only works when sticky icon is enabled
-	 * Debounced to prevent flickering during tab transitions
+	 * Removed debounce - must be immediate to prevent flash
 	 */
 	updateTabHeaders(): void {
 		// Clear any pending update
 		if (this.tabHeaderUpdateTimeout) {
 			clearTimeout(this.tabHeaderUpdateTimeout);
+			this.tabHeaderUpdateTimeout = null;
 		}
 
-		// Debounce the update to avoid flickering during tab animations
-		this.tabHeaderUpdateTimeout = setTimeout(() => {
-			this.tabHeaderUpdateTimeout = null;
-			this._doUpdateTabHeaders();
-		}, 100); // Small delay to let tab animations complete
+		// Execute immediately - no debounce to prevent flash
+		this._doUpdateTabHeaders();
 	}
 
 	/**
@@ -429,36 +568,110 @@ export class StickyTabService {
 			document.querySelectorAll('.is-home-base-tab').forEach(el => {
 				el.classList.remove('is-home-base-tab');
 			});
+			// Restore any removed ghost tab headers
+			document.querySelectorAll('.workspace-tab-header').forEach((tabHeader) => {
+				const tabHeaderExtended = tabHeader as TabHeaderElement;
+				if (tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader)) {
+					const parent = tabHeaderExtended._homeBaseParent;
+					const nextSibling = tabHeaderExtended._homeBaseNextSibling;
+					if (parent) {
+						if (nextSibling && nextSibling.parentElement === parent) {
+							parent.insertBefore(tabHeader, nextSibling);
+						} else {
+							parent.appendChild(tabHeader);
+						}
+					}
+					delete tabHeaderExtended._homeBaseParent;
+					delete tabHeaderExtended._homeBaseNextSibling;
+				}
+			});
 			return;
 		}
 
 		const homeBasePath = this.plugin.settings.homeBasePath;
-		if (!homeBasePath) return;
+		if (!homeBasePath) {
+			return;
+		}
 
-		// Use requestAnimationFrame to ensure DOM is ready
+		// CRITICAL: Remove ghost tab headers SYNCHRONOUSLY before any animation frames
+		// This prevents them from briefly appearing when tabs change
+		const ghostTabHeadersToRemove: Array<{tabHeader: HTMLElement; leaf: WorkspaceLeaf}> = [];
+		
+		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+			const isHomeBase = leafHasFile(leaf, homeBasePath);
+			if (!isHomeBase) return;
+			
+			const viewState = leaf.getViewState();
+			const isGhostTab = viewState.pinned === true && isHomeBase;
+			
+			if (isGhostTab) {
+				const tabHeader = this.getTabHeaderForLeaf(leaf);
+				if (tabHeader && tabHeader.parentElement) {
+					ghostTabHeadersToRemove.push({tabHeader, leaf});
+				}
+			}
+		});
+		
+		// Remove all ghost tab headers synchronously BEFORE any rendering
+		ghostTabHeadersToRemove.forEach(({tabHeader}) => {
+			const parent = tabHeader.parentElement;
+			if (parent && parent.classList.contains('workspace-tab-header-container-inner')) {
+				const tabHeaderExtended = tabHeader as TabHeaderElement;
+				// Only remove if not already removed
+				if (parent.contains(tabHeader)) {
+					tabHeaderExtended._homeBaseParent = parent;
+					tabHeaderExtended._homeBaseNextSibling = tabHeader.nextSibling;
+					tabHeader.remove();
+				}
+			}
+		});
+
+		// Now update other tab headers in requestAnimationFrame (non-critical)
 		requestAnimationFrame(() => {
-			// Only hide the ghost tab (pinned home base tab)
+			// Restore any non-ghost tabs that were incorrectly removed
 			this.plugin.app.workspace.iterateAllLeaves((leaf) => {
 				const isHomeBase = leafHasFile(leaf, homeBasePath);
-				if (!isHomeBase) {
-					const tabHeader = this.getTabHeaderForLeaf(leaf);
-					if (tabHeader) {
-						tabHeader.classList.remove('is-home-base-tab');
-					}
-					return;
-				}
-
-				// Check if this is the ghost tab (pinned)
 				const viewState = leaf.getViewState();
-				const isGhostTab = viewState.pinned === true;
+				const isGhostTab = viewState.pinned === true && isHomeBase;
 				
 				const tabHeader = this.getTabHeaderForLeaf(leaf);
 				if (tabHeader) {
-					if (isGhostTab) {
-						// Hide ghost tab header
-						tabHeader.classList.add('is-home-base-tab');
-					} else {
-						// Don't hide normal tabs
+					const tabHeaderExtended = tabHeader as TabHeaderElement;
+					const isRemoved = tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader);
+					
+					if (isHomeBase && !isGhostTab) {
+						// Don't hide normal tabs - restore if it was removed
+						if (isRemoved) {
+							const parent = tabHeaderExtended._homeBaseParent;
+							const nextSibling = tabHeaderExtended._homeBaseNextSibling;
+							if (parent) {
+								if (nextSibling && nextSibling.parentElement === parent) {
+									parent.insertBefore(tabHeader, nextSibling);
+								} else {
+									parent.appendChild(tabHeader);
+								}
+								delete tabHeaderExtended._homeBaseParent;
+								delete tabHeaderExtended._homeBaseNextSibling;
+							}
+						}
+						tabHeader.classList.remove('is-home-base-tab');
+						tabHeader.removeAttribute('data-home-base-ghost');
+						tabHeader.removeAttribute('aria-hidden');
+					} else if (!isHomeBase) {
+						// Not home base - restore if it was removed
+						if (isRemoved) {
+							const parent = tabHeaderExtended._homeBaseParent;
+							const nextSibling = tabHeaderExtended._homeBaseNextSibling;
+							if (parent) {
+								if (nextSibling && nextSibling.parentElement === parent) {
+									parent.insertBefore(tabHeader, nextSibling);
+								} else {
+									parent.appendChild(tabHeader);
+								}
+								delete tabHeaderExtended._homeBaseParent;
+								delete tabHeaderExtended._homeBaseNextSibling;
+							}
+						}
 						tabHeader.classList.remove('is-home-base-tab');
 					}
 				}
@@ -523,8 +736,10 @@ export class StickyTabService {
 
 	/**
 	 * Close the home base tab
+	 * When called from context menu: Only closes the ghost tab (the "occupied" slot)
+	 * Other home base tabs are left alone
 	 */
-	async closeHomeBase(): Promise<void> {
+	async closeHomeBase(actuallyClose: boolean = false): Promise<void> {
 		const homeBasePath = this.plugin.settings.homeBasePath;
 		if (!homeBasePath) return;
 
@@ -532,12 +747,43 @@ export class StickyTabService {
 		const homeBaseFile = getFileByPath(this.plugin.app, homeBasePath);
 		if (!homeBaseFile) return;
 
-		const homeBaseLeaf = this.plugin.homeService.findExistingHomeBaseLeaf(homeBaseFile);
-		if (homeBaseLeaf) {
-			homeBaseLeaf.detach();
-			// Update tab headers after closing
-			this.updateTabHeaders();
+		// Find the ghost tab (the "occupied" slot - pinned home base tab)
+		const ghostTabs: WorkspaceLeaf[] = [];
+		
+		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+			if (leafHasFile(leaf, homeBasePath)) {
+				try {
+					const viewState = leaf.getViewState();
+					if (viewState.pinned === true) {
+						ghostTabs.push(leaf);
+					}
+				} catch {
+					// Leaf might be detached, skip it
+				}
+			}
+		});
+
+		if (this.plugin.settings.showStickyHomeIcon) {
+			// Sticky icon enabled: only close the ghost tab (the occupied slot)
+			// Other home base tabs are left alone
+			for (const ghostTab of ghostTabs) {
+				void ghostTab.detach();
+			}
+		} else {
+			// Sticky icon disabled: close all home base tabs
+			const allHomeBaseLeaves: WorkspaceLeaf[] = [];
+			this.plugin.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+				if (leafHasFile(leaf, homeBasePath)) {
+					allHomeBaseLeaves.push(leaf);
+				}
+			});
+			for (const leaf of allHomeBaseLeaves) {
+				void leaf.detach();
+			}
 		}
+
+		// Update tab headers after closing
+		this.updateTabHeaders();
 	}
 
 	/**

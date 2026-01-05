@@ -665,25 +665,50 @@ export class HomeBaseService {
 	 */
 	findGhostTab(file?: TFile, isRandom: boolean = false): WorkspaceLeaf | null {
 		if (!file) {
+			console.debug('[Home Base] findGhostTab: No file provided');
 			return null;
 		}
 		const homeBasePath = file.path;
 
-		// getLeavesOfType only returns leaves in the current window
-		const leaves = LEAF_TYPES.flatMap(type => 
-			this.app.workspace.getLeavesOfType(type)
-		);
+		// Use iterateAllLeaves instead of getLeavesOfType to find tabs even when hidden (zen mode, etc.)
+		// getLeavesOfType might not work properly when tabs are hidden
+		const leaves: WorkspaceLeaf[] = [];
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			const viewType = leaf.view?.getViewType();
+			if (viewType && (LEAF_TYPES as readonly string[]).includes(viewType)) {
+				leaves.push(leaf);
+			}
+		});
+
+		console.debug('[Home Base] findGhostTab:', {
+			homeBasePath: homeBasePath,
+			totalLeaves: leaves.length,
+			isRandom: isRandom
+		});
 
 		for (const leaf of leaves) {
 			if (leafHasFile(leaf, homeBasePath)) {
 				const viewState = leaf.getViewState();
+				const isPinned = viewState.pinned === true;
 				// Ghost tab is pinned (unless it's random)
-				if (isRandom || viewState.pinned === true) {
+				if (isRandom || isPinned) {
+					console.debug('[Home Base] findGhostTab: Found ghost tab:', {
+						leaf: leaf,
+						isPinned: isPinned,
+						isRandom: isRandom,
+						viewType: leaf.view?.getViewType()
+					});
 					return leaf;
+				} else {
+					console.debug('[Home Base] findGhostTab: Found home base tab but not pinned:', {
+						isPinned: isPinned,
+						viewState: viewState
+					});
 				}
 			}
 		}
 
+		console.debug('[Home Base] findGhostTab: No ghost tab found');
 		return null;
 	}
 
@@ -762,26 +787,16 @@ export class HomeBaseService {
 		// Check if ghost tab already exists
 		const ghostTab = this.findGhostTab(file, isRandom);
 		
+		console.debug('[Home Base] openHomeBaseInGhostTab:', {
+			file: file.path,
+			ghostTabFound: !!ghostTab,
+			isRandom: isRandom,
+			zenMode: document.body.classList.contains('zenmode-active')
+		});
+		
 		if (ghostTab) {
-			// Ghost tab exists - close any other tabs with the same file, then focus ghost tab
-			const allLeaves = LEAF_TYPES.flatMap(type => 
-				this.app.workspace.getLeavesOfType(type)
-			);
-			
-			const duplicates: WorkspaceLeaf[] = [];
-			for (const leaf of allLeaves) {
-				if (leaf !== ghostTab && leafHasFile(leaf, resolvedPath)) {
-					duplicates.push(leaf);
-				}
-			}
-			
-			for (const leaf of duplicates) {
-				void leaf.detach();
-			}
-			
-			// Wait a bit for detachments to complete
-			await new Promise(resolve => setTimeout(resolve, 100));
-			
+			// Ghost tab exists - just jump to it, don't close other tabs
+			// User can have multiple home base tabs open, but clicking sticky icon jumps to the "occupied" one
 			const shouldFocus = !this.isSettingsModalOpen();
 			this.app.workspace.setActiveLeaf(ghostTab, { focus: shouldFocus });
 			await this.configureView(ghostTab, file);
@@ -793,24 +808,8 @@ export class HomeBaseService {
 		}
 
 		// Ghost tab doesn't exist - create it
-		// Close ALL tabs with the same file first (including any non-pinned ones)
-		const allLeaves = LEAF_TYPES.flatMap(type => 
-			this.app.workspace.getLeavesOfType(type)
-		);
-		
-		const existingTabs: WorkspaceLeaf[] = [];
-		for (const leaf of allLeaves) {
-			if (leafHasFile(leaf, resolvedPath)) {
-				existingTabs.push(leaf);
-			}
-		}
-		
-		for (const leaf of existingTabs) {
-			void leaf.detach();
-		}
-		
-		// Wait a bit for detachments to complete
-		await new Promise(resolve => setTimeout(resolve, 100));
+		// Don't close existing tabs - user can have multiple home base tabs
+		// The first one we create will "occupy" the ghost tab slot (be pinned and hidden)
 
 		// Create new ghost tab
 		const newGhostTab = this.app.workspace.getLeaf('tab');
@@ -820,6 +819,12 @@ export class HomeBaseService {
 		if (!isRandom) {
 			newGhostTab.setPinned(true);
 		}
+		
+		// Mark the tab header immediately after pinning (for auto-hide tab counting)
+		// Use a small delay to ensure the tab header exists
+		setTimeout(() => {
+			this.plugin.stickyTabService.updateTabHeaders();
+		}, 50);
 		
 		// Focus it
 		const shouldFocus = !this.isSettingsModalOpen();

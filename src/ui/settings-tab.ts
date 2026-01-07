@@ -336,8 +336,8 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 			// Use different file for new tabs toggle
 			tabGroup.addSetting((setting) => {
 				setting
-					.setName('Use different file for new tabs')
-					.setDesc('Configure a different file to open for new tabs (instead of home base)')
+					.setName('Use different home base for new tabs')
+					.setDesc('Configure a different home base to open for new tabs (instead of the main home base)')
 					.addToggle((toggle) => {
 						toggle
 							.setValue(this.plugin.settings.useDifferentFileForNewTab)
@@ -543,7 +543,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 			uiGroup.addSetting((setting) => {
 				setting
 					.setName('Hide tab header')
-					.setDesc('Hide the ghost tab header when it\'s open, using the sticky icon as the tab indicator')
+					.setDesc('Hide the sticky home tab header when it\'s open, using the sticky icon as the tab indicator')
 					.addToggle((toggle) => {
 						toggle
 							.setValue(this.plugin.settings.hideHomeTabHeader)
@@ -562,8 +562,8 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 		mobileGroup.addSetting((setting) => {
 				setting
-					.setName('Separate mobile home page')
-					.setDesc('Use a different home page on mobile devices')
+					.setName('Separate mobile home base')
+					.setDesc('Use a different home base on mobile devices')
 				.addToggle((toggle) => {
 					toggle
 						.setValue(this.plugin.settings.separateMobile)
@@ -590,7 +590,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		if (this.plugin.settings.separateMobile) {
 			mobileGroup.addSetting((setting) => {
 				setting
-					.setName('Mobile home page')
+					.setName('Mobile home base')
 					.setDesc('What to open as your home base on mobile')
 					.addDropdown((dropdown) => {
 						const mobileType = this.plugin.settings.mobileHomeBaseType || HomeBaseType.File;
@@ -693,24 +693,24 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 			}
 		}
 
+		// Replace mobile new tab button (always available, not dependent on "Use different home base for new tabs")
+		mobileGroup.addSetting((setting) => {
+			setting
+				.setName('Replace mobile new tab button')
+				.setDesc('Change the mobile new tab button to a home icon')
+				.addToggle((toggle) => {
+					toggle
+						.setValue(this.plugin.settings.replaceMobileNewTab)
+						.onChange(async (value) => {
+							this.plugin.settings.replaceMobileNewTab = value;
+							await this.plugin.saveSettings();
+							this.plugin.updateMobileButton();
+						});
+				});
+		});
+
 		// Mobile new tab settings (only show if "Use different file for new tabs" is enabled)
 		if (this.plugin.settings.useDifferentFileForNewTab) {
-			// Replace mobile new tab button
-			mobileGroup.addSetting((setting) => {
-				setting
-					.setName('Replace mobile new tab button')
-					.setDesc('Change the mobile new tab button to a home icon')
-					.addToggle((toggle) => {
-						toggle
-							.setValue(this.plugin.settings.replaceMobileNewTab)
-							.onChange(async (value) => {
-								this.plugin.settings.replaceMobileNewTab = value;
-								await this.plugin.saveSettings();
-								this.plugin.updateMobileButton();
-							});
-					});
-			});
-
 			// Separate mobile new tab toggle
 			mobileGroup.addSetting((setting) => {
 				setting

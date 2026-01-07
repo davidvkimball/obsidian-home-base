@@ -65,7 +65,8 @@
 }
 
 /* Reduce left padding since icon is now inside the container */
-.workspace-split.mod-vertical.mod-root.home-base-sticky-icon-enabled .workspace-tab-header-container-inner {
+/* Only apply to splits that actually have the sticky icon (not the other side of a split view) */
+.workspace-split.mod-vertical.mod-root.home-base-sticky-icon-enabled .workspace-tab-header-container-inner:has(.home-base-sticky-icon) {
 	padding-left: 0; /* Icon is inside, so no extra left padding needed */
 }
 

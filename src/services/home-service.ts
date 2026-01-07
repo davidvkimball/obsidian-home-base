@@ -457,7 +457,12 @@ export class HomeBaseService {
 
 		// For new tab replacement: just open the file, no pinning, no ghost tab logic
 		// Multiple tabs with the same file are fine
+		// CRITICAL: When isNewTab=true, completely bypass ALL ghost tab logic
 		if (isNewTab) {
+			console.debug('[Home Base] openInLeafWithSettings: isNewTab=true, bypassing ghost tab logic', {
+				file: file.path,
+				settings: settings
+			});
 			await leaf.openFile(file);
 			await this.configureView(leaf, file);
 			this.runCommandOnOpen();

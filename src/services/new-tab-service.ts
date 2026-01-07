@@ -197,11 +197,6 @@ export class NewTabService {
 	 * Based on new-tab-default-page implementation
 	 */
 	handleLayoutChange(): void {
-		// Skip if new tab replacement is disabled
-		if (!this.plugin.settings.replaceNewTab) {
-			return;
-		}
-
 		// Skip during startup
 		if (this.isStartup || !this.startupCompleted) {
 			return;
@@ -214,7 +209,8 @@ export class NewTabService {
 				return;
 			}
 
-			// Mark as seen
+			// Mark as seen BEFORE checking if it's empty
+			// This prevents processing the same leaf multiple times
 			this.existingLeaves.add(leaf);
 
 			// Check if this is an empty tab
@@ -222,16 +218,36 @@ export class NewTabService {
 				return;
 			}
 
+			// Check if this is the only tab (all tabs were closed)
+			const isOnlyTab = this.isOnlyTab(leaf);
+
+			// Handle "Open when all tabs are closed" - works independently of replaceNewTab
+			if (isOnlyTab && this.plugin.settings.openWhenAllTabsClosed === true) {
+				// Open home base when all tabs are closed
+				void this.replaceEmptyTab(leaf, true); // Pass true to indicate this is for "all tabs closed"
+				return;
+			}
+
+			// Handle "Replace new tabs" - only if enabled
+			if (this.plugin.settings.replaceNewTab !== true) {
+				return;
+			}
+
+			// Double-check replaceNewTab is still true (in case it changed during processing)
+			if (this.plugin.settings.replaceNewTab !== true) {
+				return;
+			}
+
 			// Handle based on mode
 			if (this.plugin.settings.newTabMode === 'only-when-empty') {
 				// Only replace if this is the only tab
-				if (!this.isOnlyTab(leaf)) {
+				if (!isOnlyTab) {
 					return;
 				}
 			}
 
-			// Replace the empty tab with home base
-			void this.replaceEmptyTab(leaf);
+			// Replace the empty tab with home base (for new tab replacement)
+			void this.replaceEmptyTab(leaf, false); // Pass false to indicate this is for "new tab replacement"
 		});
 	}
 
@@ -259,40 +275,89 @@ export class NewTabService {
 	}
 
 	/**
-	 * Check if this is the only tab in the workspace
+	 * Check if this is the only tab in the main workspace
+	 * Only counts root leaves (main workspace tabs), not sidebar tabs
+	 * Based on obsidian-disable-tabs pattern using iterateRootLeaves
 	 */
 	private isOnlyTab(leaf: WorkspaceLeaf): boolean {
-		const leafAny = leaf as unknown as { parentSplit?: { children?: unknown[] } };
-		const parent = leafAny.parentSplit;
-		if (!parent) return true;
+		let tabCount = 0;
+		this.app.workspace.iterateRootLeaves((l) => {
+			tabCount++;
+		});
 		
-		const children = parent.children;
-		if (!children) return true;
+		const result = tabCount === 1;
+		console.debug('[Home Base] isOnlyTab:', {
+			leaf: leaf,
+			tabCount: tabCount,
+			isOnlyTab: result
+		});
 		
-		return children.length === 1;
+		return result;
 	}
 
 	/**
 	 * Replace an empty tab with the home base or new tab file
+	 * @param leaf The leaf to replace
+	 * @param isAllTabsClosed Whether this is triggered by "all tabs closed" (true) or "new tab replacement" (false)
 	 */
-	private async replaceEmptyTab(leaf: WorkspaceLeaf): Promise<void> {
+	private async replaceEmptyTab(leaf: WorkspaceLeaf, isAllTabsClosed: boolean = false): Promise<void> {
+		// If this is for new tab replacement (not all tabs closed), check replaceNewTab
+		if (!isAllTabsClosed) {
+			// CRITICAL: Check replaceNewTab one more time before actually replacing
+			// This prevents race conditions where the setting changed between checks
+			if (this.plugin.settings.replaceNewTab !== true) {
+				console.debug('[Home Base] replaceEmptyTab: replaceNewTab is not true, aborting');
+				return;
+			}
+		}
+
 		// Small delay to handle race conditions with other plugins
 		await new Promise(resolve => setTimeout(resolve, 50));
 
+		// If this is for new tab replacement, check again after delay
+		if (!isAllTabsClosed) {
+			// Final check after delay - setting might have changed
+			if (this.plugin.settings.replaceNewTab !== true) {
+				console.debug('[Home Base] replaceEmptyTab: replaceNewTab changed during delay, aborting');
+				return;
+			}
+		} else {
+			// If this is for all tabs closed, check that setting instead
+			if (this.plugin.settings.openWhenAllTabsClosed !== true) {
+				console.debug('[Home Base] replaceEmptyTab: openWhenAllTabsClosed changed during delay, aborting');
+				return;
+			}
+		}
+
 		// Double-check the tab is still empty
 		if (!this.isEmptyTab(leaf)) {
+			console.debug('[Home Base] replaceEmptyTab: Tab is no longer empty, skipping');
 			return;
 		}
 
-		// Get new tab settings (falls back to home base if useDifferentFileForNewTab is disabled)
-		const newTabSettings = this.plugin.getNewTabSettings();
+		// If this is for "all tabs closed", use home base settings
+		// Otherwise, use new tab settings (for "replace new tabs" feature)
+		const settings = isAllTabsClosed 
+			? this.plugin.getHomeBaseSettings()
+			: this.plugin.getNewTabSettings();
 		
-		// Open file in this leaf using the new tab settings
+		console.debug('[Home Base] replaceEmptyTab:', {
+			leaf: leaf,
+			isAllTabsClosed: isAllTabsClosed,
+			settings: settings,
+			replaceNewTab: this.plugin.settings.replaceNewTab,
+			newTabMode: this.plugin.settings.newTabMode,
+			useDifferentFileForNewTab: this.plugin.settings.useDifferentFileForNewTab
+		});
+		
+		// Open file in this leaf
 		// Pass isNewTab=true to skip pinning/ghost tab logic - new tabs should work independently
-		const success = await this.plugin.homeService.openInLeafWithSettings(leaf, newTabSettings, true);
+		const success = await this.plugin.homeService.openInLeafWithSettings(leaf, settings, true);
 		
 		if (!success) {
-			console.warn('[Home Base] Failed to open new tab file');
+			console.warn('[Home Base] Failed to open file:', settings);
+		} else {
+			console.debug('[Home Base] replaceEmptyTab: Successfully opened file');
 		}
 	}
 

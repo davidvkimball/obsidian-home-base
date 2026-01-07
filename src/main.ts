@@ -306,23 +306,42 @@ export default class HomeBasePlugin extends Plugin {
 	} {
 		// If not using different file for new tab, fall back to home base settings
 		if (!this.settings.useDifferentFileForNewTab) {
-			return this.getHomeBaseSettings();
+			const homeBaseSettings = this.getHomeBaseSettings();
+			console.debug('[Home Base] getNewTabSettings: Using home base settings (useDifferentFileForNewTab is false)', homeBaseSettings);
+			return homeBaseSettings;
 		}
 
 		// Use new tab settings, checking for mobile if separate mobile is enabled
+		let settings: { type: HomeBaseType; value: string; path: string };
+		
 		if (this.settings.newTabSeparateMobile && Platform.isMobile) {
-			return {
+			settings = {
 				type: this.settings.mobileNewTabType || HomeBaseType.File,
 				value: this.settings.mobileNewTabValue || '',
 				path: this.settings.mobileNewTabValue || '',
 			};
+		} else {
+			settings = {
+				type: this.settings.newTabType || HomeBaseType.File,
+				value: this.settings.newTabValue || '',
+				path: this.settings.newTabValue || '',
+			};
 		}
 		
-		return {
-			type: this.settings.newTabType || HomeBaseType.File,
-			value: this.settings.newTabValue || '',
-			path: this.settings.newTabValue || '',
-		};
+		// Validate settings
+		if (!settings.value && settings.type === HomeBaseType.File) {
+			console.warn('[Home Base] getNewTabSettings: newTabValue is empty for File type, falling back to home base settings');
+			return this.getHomeBaseSettings();
+		}
+		
+		console.debug('[Home Base] getNewTabSettings: Using new tab settings', {
+			useDifferentFileForNewTab: this.settings.useDifferentFileForNewTab,
+			newTabSeparateMobile: this.settings.newTabSeparateMobile,
+			isMobile: Platform.isMobile,
+			settings: settings
+		});
+		
+		return settings;
 	}
 
 	/**

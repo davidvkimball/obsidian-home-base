@@ -42,7 +42,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		// Home page type dropdown
 		generalGroup.addSetting((setting) => {
 			setting
-				.setName('Home page')
+				.setName('Type')
 				.setDesc('What to open as your home base')
 				.addDropdown((dropdown) => {
 					let pluginDisabled = false;
@@ -273,8 +273,22 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 		tabGroup.addSetting((setting) => {
 			setting
+				.setName('Open home base when all tabs are closed')
+				.setDesc('When you close all tabs, automatically open the home base')
+				.addToggle((toggle) => {
+					toggle
+						.setValue(this.plugin.settings.openWhenAllTabsClosed)
+						.onChange(async (value) => {
+							this.plugin.settings.openWhenAllTabsClosed = value;
+							await this.plugin.saveSettings();
+						});
+				});
+		});
+
+		tabGroup.addSetting((setting) => {
+			setting
 				.setName('Replace new tabs')
-				.setDesc('Open home base instead of new empty tabs')
+				.setDesc('Open home base instead of new empty tabs (works independently of "open home base when all tabs are closed")')
 				.addToggle((toggle) => {
 					toggle
 						.setValue(this.plugin.settings.replaceNewTab)
@@ -305,7 +319,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 			tabGroup.addSetting((setting) => {
 				setting
 					.setName('New tab replacement mode')
-					.setDesc('When to replace new tabs with home base')
+					.setDesc('When to replace new tabs (only when no tabs are open, or always)')
 					.addDropdown((dropdown) => {
 						for (const [value, label] of Object.entries(NEW_TAB_MODE_OPTIONS)) {
 							dropdown.addOption(value, label);

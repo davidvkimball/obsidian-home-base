@@ -36,6 +36,7 @@ export interface HomeBaseSettings {
 	// Tab Behavior
 	replaceNewTab: boolean;
 	newTabMode: NewTabMode;
+	openWhenAllTabsClosed: boolean; // Open home base when all tabs are closed (independent of replaceNewTab)
 	keepExistingTabs: boolean; // Legacy - maps to openMode: 'replace-all' vs 'retain'
 	useDifferentFileForNewTab: boolean; // Use separate new tab settings vs home base
 	newTabType: HomeBaseType;
@@ -78,6 +79,7 @@ export const DEFAULT_SETTINGS: HomeBaseSettings = {
 	// Tab Behavior
 	replaceNewTab: false,
 	newTabMode: 'only-when-empty', // Default: only replace when no tabs are open
+	openWhenAllTabsClosed: true, // Default: open home base when all tabs are closed
 	keepExistingTabs: true,
 	useDifferentFileForNewTab: false,
 	newTabType: HomeBaseType.File,

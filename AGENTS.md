@@ -25,7 +25,7 @@ Applicability: Plugin
 
 - **Smart Startup Detection**: Plugin checks if home base is already the focused tab on startup - if so, it does nothing (no reload)
 - **New Tab Behavior**: Like new-tab-default-page - opens home base only when no tabs are open (default), with toggle for "always replace"
-- **MDX Support**: Uses manual frontmatter parsing since Obsidian's metadataCache only works for .md files
+- **MDX Support**: Uses manual properties parsing since Obsidian's metadataCache only works for .md files
 - **SettingGroup Compatibility**: Uses backward-compatible utility for Obsidian 1.11.0+ SettingGroup API
 - **View Mode**: Only applies to md/mdx files; canvas/base use their native views
 
@@ -35,6 +35,8 @@ Applicability: Plugin
 - Update MDX utilities if Obsidian adds native MDX support
 
 ### Project-Specific Conventions
+
+- **Terminology: Use "properties" not "frontmatter"**: Obsidian prefers the term "properties" over "frontmatter" or "front-matter" when referring to YAML metadata at the top of markdown files. All documentation, code comments, and UI text should use "properties" to align with Obsidian's official terminology.
 
 - Service classes should be instantiated in main.ts and passed the plugin instance
 - UI components in `src/ui/` folder

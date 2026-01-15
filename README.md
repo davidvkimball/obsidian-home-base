@@ -119,7 +119,19 @@ Home Base is not yet available in the Community plugins section. Install using [
 
 - Works on both desktop and mobile
 - Compatible with Obsidian 0.15.0 and later
+- **Obsidian 1.11.0+ Native Support**: Acknowledges and integrates with Obsidian's native "Default file to open" feature. Home Base's "Open on startup" setting will override the native behavior if enabled.
 - Uses backward-compatible settings grouping for Obsidian 1.11.0+ while supporting older versions
+
+### Why Home Base?
+
+While Obsidian 1.11.0+ includes a native "Default file to open" feature, Home Base provides several advanced capabilities not available natively:
+
+- **Workspaces & Graphs**: Open a specific workspace layout or the graph view as your home base.
+- **Sticky Home Icon (Ghost Tab)**: A persistent home button that stays pinned to the left, saving space and reducing tab clutter.
+- **Commands on Open**: Automatically run any Obsidian command when your home base opens.
+- **New Tab Replacement**: Replace new empty tabs with your home base (or a different file entirely).
+- **Mobile-Specific Config**: Use different home bases and new tab behaviors for mobile vs desktop.
+- **Smart Cleanup**: Optionally detach all open leaves or replace only the last note when opening home base.
 
 ## Development
 

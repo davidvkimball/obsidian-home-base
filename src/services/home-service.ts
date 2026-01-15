@@ -26,6 +26,7 @@ function equalsCaseless(path1: string, path2: string): boolean {
 export class HomeBaseService {
 	private app: App;
 	private plugin: HomeBasePlugin;
+	private ghostLeaves: WeakSet<WorkspaceLeaf> = new WeakSet();
 
 	constructor(plugin: HomeBasePlugin) {
 		this.plugin = plugin;
@@ -500,6 +501,7 @@ export class HomeBaseService {
 			
 			// No ghost tab found, but sticky icon is enabled - this tab should become the ghost tab
 			// Pin it so it's recognized as the ghost tab
+			this.ghostLeaves.add(leaf);
 			if (!isRandom) {
 				leaf.setPinned(true);
 			}
@@ -608,7 +610,7 @@ export class HomeBaseService {
 		// Revert to default view
 		const state = view.getState();
 		 
-		const config = (this.app.vault as unknown as { config?: { defaultViewMode?: string; livePreview?: boolean } }).config;
+		const config = this.app.vault.config;
 		const mode = config?.defaultViewMode || 'source';
 		const source = config?.livePreview !== undefined ? !config.livePreview : false;
 
@@ -658,62 +660,40 @@ export class HomeBaseService {
 	}
 
 	/**
+	 * Check if a leaf is a ghost tab
+	 */
+	isGhostLeaf(leaf: WorkspaceLeaf): boolean {
+		return this.ghostLeaves.has(leaf);
+	}
+
+	/**
 	 * Find the ghost tab (the one opened via sticky icon)
-	 * Ghost tab is identified by being pinned and having the home base file
+	 * Ghost tab is identified by being in our ghostLeaves set
 	 * Only searches in the current window (getLeavesOfType is window-scoped)
 	 * 
 	 * Note: If the ghost tab is moved to another window, this will return null,
 	 * and a new ghost tab will be created in the current window when needed.
 	 * This is the desired behavior - each window can have its own ghost tab.
-	 * 
-	 * For random types, we don't look for pinned tabs (they're not pinned).
 	 */
 	findGhostTab(file?: TFile, isRandom: boolean = false): WorkspaceLeaf | null {
-		if (!file) {
-			console.debug('[Home Base] findGhostTab: No file provided');
-			return null;
-		}
-		const homeBasePath = file.path;
-
 		// Use iterateAllLeaves instead of getLeavesOfType to find tabs even when hidden (zen mode, etc.)
-		// getLeavesOfType might not work properly when tabs are hidden
 		const leaves: WorkspaceLeaf[] = [];
 		this.app.workspace.iterateAllLeaves((leaf) => {
-			const viewType = leaf.view?.getViewType();
-			if (viewType && (LEAF_TYPES as readonly string[]).includes(viewType)) {
+			if (this.ghostLeaves.has(leaf)) {
 				leaves.push(leaf);
 			}
 		});
 
-		console.debug('[Home Base] findGhostTab:', {
-			homeBasePath: homeBasePath,
-			totalLeaves: leaves.length,
-			isRandom: isRandom
-		});
-
-		for (const leaf of leaves) {
-			if (leafHasFile(leaf, homeBasePath)) {
-				const viewState = leaf.getViewState();
-				const isPinned = viewState.pinned === true;
-				// Ghost tab is pinned (unless it's random)
-				if (isRandom || isPinned) {
-					console.debug('[Home Base] findGhostTab: Found ghost tab:', {
-						leaf: leaf,
-						isPinned: isPinned,
-						isRandom: isRandom,
-						viewType: leaf.view?.getViewType()
-					});
-					return leaf;
-				} else {
-					console.debug('[Home Base] findGhostTab: Found home base tab but not pinned:', {
-						isPinned: isPinned,
-						viewState: viewState
-					});
-				}
+		if (leaves.length > 0) {
+			// If we have a specific file to match, filter by it
+			if (file) {
+				const matchingLeaf = leaves.find(leaf => leafHasFile(leaf, file.path));
+				if (matchingLeaf) return matchingLeaf;
 			}
+			// Otherwise just return the first ghost leaf found
+			return leaves[0] || null;
 		}
 
-		console.debug('[Home Base] findGhostTab: No ghost tab found');
 		return null;
 	}
 
@@ -818,6 +798,7 @@ export class HomeBaseService {
 
 		// Create new ghost tab
 		const newGhostTab = this.app.workspace.getLeaf('tab');
+		this.ghostLeaves.add(newGhostTab);
 		await newGhostTab.openFile(file);
 		
 		// Pin the ghost tab (unless it's random - file changes each time)
@@ -966,17 +947,35 @@ export class HomeBaseService {
 	 * Check if the focused tab is the home base
 	 */
 	isFocusedOnHomeBase(): boolean {
+		const activeLeaf = this.app.workspace.getMostRecentLeaf();
+		if (!activeLeaf) return false;
+
+		// If it's a ghost leaf, it's definitely the home base
+		if (this.ghostLeaves.has(activeLeaf)) {
+			return true;
+		}
+
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) return false;
 
-		const homeBasePath = this.plugin.settings.homeBasePath;
-		if (!homeBasePath) return false;
+		const homeBaseSettings = this.plugin.getHomeBaseSettings();
+		
+		// If it's a file type, we can check path directly (fast)
+		if (homeBaseSettings.type === HomeBaseType.File) {
+			const homeBasePath = homeBaseSettings.value || this.plugin.settings.homeBasePath;
+			if (!homeBasePath) return false;
 
-		// Get the home base file for accurate comparison
-		const homeBaseFile = getFileByPath(this.app, homeBasePath);
-		if (!homeBaseFile) return false;
+			const homeBaseFile = getFileByPath(this.app, homeBasePath);
+			if (!homeBaseFile) return false;
 
-		return activeFile.path === homeBaseFile.path;
+			return activeFile.path === homeBaseFile.path;
+		}
+
+		// For other types, we might need more complex checking
+		// But usually being the active file is enough if we trust the last resolution
+		// or we can just rely on ghostLeaves for sticky icon active state
+		
+		return false;
 	}
 
 	/**
@@ -987,6 +986,18 @@ export class HomeBaseService {
 		if (!path) return false;
 		
 		return getFileByPath(this.app, path) !== null;
+	}
+
+	/**
+	 * Get the native Obsidian open behavior setting (from app.json)
+	 * @returns The native setting value or undefined if not supported/found
+	 */
+	getNativeOpenBehavior(): string | undefined {
+		// The config property is added via internal type augmentation
+		const config = this.app.vault.config;
+		if (!config) return undefined;
+		
+		return config.openBehavior;
 	}
 
 	/**

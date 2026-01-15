@@ -2,7 +2,7 @@
  * Home Base Settings Tab
  */
 
-import { App, PluginSettingTab } from 'obsidian';
+import { App, PluginSettingTab, requireApiVersion } from 'obsidian';
 import type HomeBasePlugin from '../main';
 import { 
 	VIEW_MODE_OPTIONS, 
@@ -170,6 +170,17 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							await this.plugin.saveSettings();
 						});
 				});
+
+			// Add warning if Obsidian 1.11.0+ and native setting exists
+			if (requireApiVersion('1.11.0')) {
+				const nativeOpenBehavior = this.plugin.homeService.getNativeOpenBehavior();
+				if (nativeOpenBehavior) {
+					setting.descEl.createDiv({
+						text: `Note: This will override Obsidian's native "Default file to open" setting (currently set to "${nativeOpenBehavior}").`,
+						cls: 'mod-warning'
+					});
+				}
+			}
 		});
 
 		// "Open when empty" setting removed - redundant with "New tab replacement: only when empty"

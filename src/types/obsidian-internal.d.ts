@@ -68,11 +68,28 @@ declare module 'obsidian' {
 		commands?: {
 			executeCommandById?: (id: string) => boolean | Promise<void>;
 		};
-		workspace?: {
-			rightSplit?: {
-				updateInfo?: () => void;
-			};
+	}
+
+	interface Commands {
+		executeCommandById?: (id: string) => boolean | Promise<void>;
+	}
+
+	interface Vault {
+		config?: {
+			openBehavior?: string;
+			defaultViewMode?: string;
+			livePreview?: boolean;
 		};
+	}
+
+	interface Workspace {
+		rightSplit?: {
+			updateInfo?: () => void;
+		};
+	}
+
+	interface WorkspaceWindow {
+		win: Window;
 	}
 }
 

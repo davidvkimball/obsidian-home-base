@@ -244,26 +244,43 @@ export default class HomeBasePlugin extends Plugin {
 	 */
 	async migrateLegacySettings(): Promise<void> {
 		let needsSave = false;
+		const settings = this.settings as unknown as Record<string, string | boolean | HomeBaseType | undefined>;
 		
 		// Migrate homeBasePath to homeBaseType/homeBaseValue
-		if (this.settings.homeBasePath && !this.settings.homeBaseValue) {
+		if (settings.homeBasePath && !this.settings.homeBaseValue) {
 			this.settings.homeBaseType = HomeBaseType.File;
-			this.settings.homeBaseValue = this.settings.homeBasePath;
+			this.settings.homeBaseValue = settings.homeBasePath as string;
 			needsSave = true;
 		}
 		
 		// Migrate keepExistingTabs to openMode
-		if (this.settings.keepExistingTabs !== undefined) {
+		if (settings.keepExistingTabs !== undefined) {
+			// Only migrate if openMode is still at default (hasn't been set by user)
 			if (this.settings.openMode === DEFAULT_SETTINGS.openMode) {
-				this.settings.openMode = this.settings.keepExistingTabs ? 'retain' : 'replace-all';
+				this.settings.openMode = settings.keepExistingTabs ? 'retain' : 'replace-all';
 				needsSave = true;
 			}
+			// Delete legacy property so it doesn't trigger again
+			delete settings.keepExistingTabs;
+			needsSave = true;
 		}
 		
 		// Migrate mobile homeBasePath
-		if (this.settings.mobileHomeBasePath && !this.settings.mobileHomeBaseValue) {
+		if (settings.mobileHomeBasePath && !this.settings.mobileHomeBaseValue) {
 			this.settings.mobileHomeBaseType = HomeBaseType.File;
-			this.settings.mobileHomeBaseValue = this.settings.mobileHomeBasePath;
+			this.settings.mobileHomeBaseValue = settings.mobileHomeBasePath as string;
+			needsSave = true;
+		}
+
+		// Also clean up mobile home base path legacy property
+		if (settings.mobileHomeBasePath !== undefined) {
+			delete settings.mobileHomeBasePath;
+			needsSave = true;
+		}
+
+		// Clean up legacy homeBasePath if it matches homeBaseValue
+		if (settings.homeBasePath !== undefined) {
+			delete settings.homeBasePath;
 			needsSave = true;
 		}
 		

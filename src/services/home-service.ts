@@ -6,7 +6,7 @@
 import { App, TFile, WorkspaceLeaf, MarkdownView, Platform, View as OView } from 'obsidian';
 import type HomeBasePlugin from '../main';
 import { HomeBaseType, OpeningMode } from '../settings';
-import { getFileByPath, isMarkdownLike, leafHasFile, isSupportedExtension } from '../utils/file-utils';
+import { getFileByPath, isMarkdownLike, leafHasFile, isSupportedExtension, pathsEqual } from '../utils/file-utils';
 import { executeCommand } from '../ui/command-suggest';
 import { computeHomeBasePath, trimFile } from '../utils/homebase-resolver';
 
@@ -661,37 +661,74 @@ export class HomeBaseService {
 
 	/**
 	 * Check if a leaf is a ghost tab
+	 * Ghost tab is identified by:
+	 * 1. Being in our internal ghostLeaves set
+	 * 2. OR being a pinned tab showing the home base file
 	 */
 	isGhostLeaf(leaf: WorkspaceLeaf): boolean {
-		return this.ghostLeaves.has(leaf);
+		if (this.ghostLeaves.has(leaf)) return true;
+
+		// Fallback check
+		const homeBaseSettings = this.plugin.getHomeBaseSettings();
+		const homeBasePath = homeBaseSettings.value || (this.plugin.settings as { homeBasePath?: string }).homeBasePath;
+		if (!homeBasePath) return false;
+
+		const viewState = leaf.getViewState();
+		const isPinned = viewState.pinned === true;
+		if (!isPinned) return false;
+
+		// Check file path from view state directly if view is not ready
+		const state = viewState.state as Record<string, unknown>;
+		const filePath = state?.file;
+		if (typeof filePath === 'string' && pathsEqual(filePath, homeBasePath)) {
+			// Found it! Add to WeakSet for future fast lookup
+			this.ghostLeaves.add(leaf);
+			return true;
+		}
+
+		// Final fallback using leafHasFile if view is ready
+		return leafHasFile(leaf, homeBasePath);
 	}
 
 	/**
 	 * Find the ghost tab (the one opened via sticky icon)
-	 * Ghost tab is identified by being in our ghostLeaves set
-	 * Only searches in the current window (getLeavesOfType is window-scoped)
-	 * 
-	 * Note: If the ghost tab is moved to another window, this will return null,
-	 * and a new ghost tab will be created in the current window when needed.
-	 * This is the desired behavior - each window can have its own ghost tab.
+	 * Ghost tab is identified by:
+	 * 1. Being in our internal ghostLeaves set (primary source)
+	 * 2. OR being a pinned tab showing the home base file (fallback for startup/dynamic types)
 	 */
 	findGhostTab(file?: TFile, isRandom: boolean = false): WorkspaceLeaf | null {
+		if (!file) return null;
+		const homeBasePath = file.path;
+
 		// Use iterateAllLeaves instead of getLeavesOfType to find tabs even when hidden (zen mode, etc.)
 		const leaves: WorkspaceLeaf[] = [];
 		this.app.workspace.iterateAllLeaves((leaf) => {
-			if (this.ghostLeaves.has(leaf)) {
+			const viewType = leaf.view?.getViewType();
+			if (viewType && LEAF_TYPES.includes(viewType)) {
 				leaves.push(leaf);
 			}
 		});
 
-		if (leaves.length > 0) {
-			// If we have a specific file to match, filter by it
-			if (file) {
-				const matchingLeaf = leaves.find(leaf => leafHasFile(leaf, file.path));
-				if (matchingLeaf) return matchingLeaf;
+		// 1. Check for a match in our WeakSet (most accurate for dynamic types)
+		for (const leaf of leaves) {
+			if (this.ghostLeaves.has(leaf)) {
+				if (leafHasFile(leaf, homeBasePath)) {
+					return leaf;
+				}
 			}
-			// Otherwise just return the first ghost leaf found
-			return leaves[0] || null;
+		}
+
+		// 2. Fallback: Check for a pinned tab showing the file (handles startup/restoration)
+		for (const leaf of leaves) {
+			if (leafHasFile(leaf, homeBasePath)) {
+				const viewState = leaf.getViewState();
+				// Ghost tab is pinned (unless it's a random file type which doesn't pin)
+				if (isRandom || viewState.pinned === true) {
+					// Found it! Add it to our WeakSet so we track it as a ghost from now on
+					this.ghostLeaves.add(leaf);
+					return leaf;
+				}
+			}
 		}
 
 		return null;

@@ -77,13 +77,13 @@ export class StickyTabService {
 	private updateWorkspaceClass(enabled: boolean): void {
 		const applyToDocument = (doc: Document) => {
 			const mainWorkspace = doc.querySelector('.workspace-split.mod-vertical.mod-root');
-			if (!mainWorkspace) return;
+		if (!mainWorkspace) return;
 
-			if (enabled) {
-				mainWorkspace.classList.add('home-base-sticky-icon-enabled');
-			} else {
-				mainWorkspace.classList.remove('home-base-sticky-icon-enabled');
-			}
+		if (enabled) {
+			mainWorkspace.classList.add('home-base-sticky-icon-enabled');
+		} else {
+			mainWorkspace.classList.remove('home-base-sticky-icon-enabled');
+		}
 		};
 
 		// Apply to main window
@@ -376,15 +376,15 @@ export class StickyTabService {
 			const workspaceObserver = new MutationObserver(() => {
 				const newContainers = doc.querySelectorAll('.workspace-tab-header-container-inner');
 				newContainers.forEach(observeContainer);
-			});
+		});
 
 			const mainWorkspace = doc.querySelector('.workspace-split.mod-vertical.mod-root');
-			if (mainWorkspace) {
-				workspaceObserver.observe(mainWorkspace, {
-					childList: true,
-					subtree: true
-				});
-			}
+		if (mainWorkspace) {
+			workspaceObserver.observe(mainWorkspace, {
+				childList: true,
+				subtree: true
+			});
+		}
 		};
 
 		setupWorkspaceObserver(window);
@@ -434,6 +434,34 @@ export class StickyTabService {
 			this.tabHeaderObserver = null;
 		}
 
+		// RESTORE EVERYTHING before fully removing
+		// This ensures tab headers are visible again and workspace classes are removed
+		this.updateWorkspaceClass(false);
+		
+		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+			const tabHeader = this.getTabHeaderForLeaf(leaf);
+			if (tabHeader) {
+				tabHeader.classList.remove('is-home-base-tab');
+				tabHeader.removeAttribute('data-home-base-ghost');
+				tabHeader.removeAttribute('aria-hidden');
+				
+				const tabHeaderExtended = tabHeader as TabHeaderElement;
+				if (tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader)) {
+					const parent = tabHeaderExtended._homeBaseParent;
+					const nextSibling = tabHeaderExtended._homeBaseNextSibling;
+					if (parent) {
+						if (nextSibling && nextSibling.parentElement === parent) {
+							parent.insertBefore(tabHeader, nextSibling);
+						} else {
+							parent.appendChild(tabHeader);
+						}
+					}
+					delete tabHeaderExtended._homeBaseParent;
+					delete tabHeaderExtended._homeBaseNextSibling;
+				}
+			}
+		});
+
 		if (this.stickyIconEl) {
 			// Only remove if it's actually in the DOM
 			if (this.stickyIconEl.parentElement) {
@@ -442,16 +470,26 @@ export class StickyTabService {
 			this.stickyIconEl = null;
 		}
 
-		// Also clean up any orphaned icons
-		document.querySelectorAll(`.${STICKY_ICON_CLASS}`).forEach(el => {
-			const stickyEl = el as StickyIconElement;
-			if (stickyEl._checkInterval) {
-				clearInterval(stickyEl._checkInterval);
+		// Also clean up any orphaned icons in all windows
+		const cleanupOrphans = (doc: Document) => {
+			doc.querySelectorAll(`.${STICKY_ICON_CLASS}`).forEach(el => {
+				const stickyEl = el as StickyIconElement;
+				if (stickyEl._checkInterval) {
+					clearInterval(stickyEl._checkInterval);
+				}
+				if (stickyEl._containerObserver) {
+					stickyEl._containerObserver.disconnect();
+				}
+				el.remove();
+			});
+		};
+
+		cleanupOrphans(document);
+		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+			const doc = leaf.view?.containerEl?.ownerDocument;
+			if (doc && doc !== document) {
+				cleanupOrphans(doc);
 			}
-			if (stickyEl._containerObserver) {
-				stickyEl._containerObserver.disconnect();
-			}
-			el.remove();
 		});
 	}
 
@@ -591,19 +629,19 @@ export class StickyTabService {
 					tabHeader.removeAttribute('data-home-base-ghost');
 					tabHeader.removeAttribute('aria-hidden');
 					
-					const tabHeaderExtended = tabHeader as TabHeaderElement;
-					if (tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader)) {
-						const parent = tabHeaderExtended._homeBaseParent;
-						const nextSibling = tabHeaderExtended._homeBaseNextSibling;
-						if (parent) {
-							if (nextSibling && nextSibling.parentElement === parent) {
-								parent.insertBefore(tabHeader, nextSibling);
-							} else {
-								parent.appendChild(tabHeader);
-							}
+				const tabHeaderExtended = tabHeader as TabHeaderElement;
+				if (tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader)) {
+					const parent = tabHeaderExtended._homeBaseParent;
+					const nextSibling = tabHeaderExtended._homeBaseNextSibling;
+					if (parent) {
+						if (nextSibling && nextSibling.parentElement === parent) {
+							parent.insertBefore(tabHeader, nextSibling);
+						} else {
+							parent.appendChild(tabHeader);
 						}
-						delete tabHeaderExtended._homeBaseParent;
-						delete tabHeaderExtended._homeBaseNextSibling;
+					}
+					delete tabHeaderExtended._homeBaseParent;
+					delete tabHeaderExtended._homeBaseNextSibling;
 					}
 				}
 			});
@@ -648,30 +686,30 @@ export class StickyTabService {
 				const tabHeader = this.getTabHeaderForLeaf(leaf);
 				if (!tabHeader) return;
 
-				const tabHeaderExtended = tabHeader as TabHeaderElement;
-				const isRemoved = tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader);
-				
+					const tabHeaderExtended = tabHeader as TabHeaderElement;
+					const isRemoved = tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader);
+					
 				if (!isGhostTab) {
 					// Not a ghost tab - restore if it was removed
-					if (isRemoved) {
-						const parent = tabHeaderExtended._homeBaseParent;
-						const nextSibling = tabHeaderExtended._homeBaseNextSibling;
-						if (parent) {
-							if (nextSibling && nextSibling.parentElement === parent) {
-								parent.insertBefore(tabHeader, nextSibling);
-							} else {
-								parent.appendChild(tabHeader);
+						if (isRemoved) {
+							const parent = tabHeaderExtended._homeBaseParent;
+							const nextSibling = tabHeaderExtended._homeBaseNextSibling;
+							if (parent) {
+								if (nextSibling && nextSibling.parentElement === parent) {
+									parent.insertBefore(tabHeader, nextSibling);
+								} else {
+									parent.appendChild(tabHeader);
+								}
+								delete tabHeaderExtended._homeBaseParent;
+								delete tabHeaderExtended._homeBaseNextSibling;
 							}
-							delete tabHeaderExtended._homeBaseParent;
-							delete tabHeaderExtended._homeBaseNextSibling;
 						}
-					}
 
 					// Check if this is a normal home base tab (not ghost) to apply active state styling if needed
 					// We only do this if we have a path to compare against
 					if (homeBasePath && leafHasFile(leaf, homeBasePath)) {
 						tabHeader.classList.add('is-home-base-tab');
-					} else {
+								} else {
 						tabHeader.classList.remove('is-home-base-tab');
 					}
 					

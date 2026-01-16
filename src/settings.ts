@@ -25,7 +25,6 @@ export enum HomeBaseType {
 
 export interface HomeBaseSettings {
 	// General
-	homeBasePath: string; // Legacy - kept for backward compatibility
 	homeBaseType: HomeBaseType;
 	homeBaseValue: string; // Type-specific value (file path, workspace name, folder path, etc.)
 	openOnStartup: boolean;
@@ -37,7 +36,6 @@ export interface HomeBaseSettings {
 	replaceNewTab: boolean;
 	newTabMode: NewTabMode;
 	openWhenAllTabsClosed: boolean; // Open home base when all tabs are closed (independent of replaceNewTab)
-	keepExistingTabs: boolean; // Legacy - maps to openMode: 'replace-all' vs 'retain'
 	useDifferentFileForNewTab: boolean; // Use separate new tab settings vs home base
 	newTabType: HomeBaseType;
 	newTabValue: string;
@@ -53,7 +51,6 @@ export interface HomeBaseSettings {
 	
 	// Mobile
 	separateMobile: boolean;
-	mobileHomeBasePath: string; // Legacy
 	mobileHomeBaseType: HomeBaseType;
 	mobileHomeBaseValue: string;
 
@@ -64,11 +61,15 @@ export interface HomeBaseSettings {
 	revertView: boolean;
 	autoScroll: boolean;
 	hideReleaseNotes: boolean;
+
+	// Legacy - kept in type for migration but removed from defaults
+	homeBasePath?: string;
+	keepExistingTabs?: boolean;
+	mobileHomeBasePath?: string;
 }
 
 export const DEFAULT_SETTINGS: HomeBaseSettings = {
 	// General
-	homeBasePath: '', // Legacy
 	homeBaseType: HomeBaseType.File,
 	homeBaseValue: '',
 	openOnStartup: true,
@@ -80,7 +81,6 @@ export const DEFAULT_SETTINGS: HomeBaseSettings = {
 	replaceNewTab: false,
 	newTabMode: 'only-when-empty', // Default: only replace when no tabs are open
 	openWhenAllTabsClosed: true, // Default: open home base when all tabs are closed
-	keepExistingTabs: true,
 	useDifferentFileForNewTab: false,
 	newTabType: HomeBaseType.File,
 	newTabValue: '',
@@ -96,7 +96,6 @@ export const DEFAULT_SETTINGS: HomeBaseSettings = {
 	
 	// Mobile
 	separateMobile: false,
-	mobileHomeBasePath: '', // Legacy
 	mobileHomeBaseType: HomeBaseType.File,
 	mobileHomeBaseValue: '',
 

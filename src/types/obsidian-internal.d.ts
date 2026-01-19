@@ -91,6 +91,10 @@ declare module 'obsidian' {
 	interface WorkspaceWindow {
 		win: Window;
 	}
+
+	interface FileManager {
+		createNewFile?: (folder: TFolder | string, name: string) => Promise<TFile>;
+	}
 }
 
 declare global {

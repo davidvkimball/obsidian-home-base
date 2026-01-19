@@ -8,12 +8,12 @@ import type HomeBasePlugin from '../main';
 import { HomeBaseType, OpeningMode } from '../settings';
 import { getFileByPath, isMarkdownLike, leafHasFile, isSupportedExtension, pathsEqual } from '../utils/file-utils';
 import { executeCommand } from '../ui/command-suggest';
-import { computeHomeBasePath, trimFile } from '../utils/homebase-resolver';
+import { computeHomeBasePath, trimFile, resolvePathSync } from '../utils/homebase-resolver';
 
 /**
  * View types that can be home base files
  */
-const LEAF_TYPES = ['markdown', 'canvas', 'bases'];
+const LEAF_TYPES = ['markdown', 'canvas', 'bases', 'kanban'];
 
 /**
  * Helper to check if two file paths are equal (case-insensitive, ignoring extension)
@@ -670,7 +670,7 @@ export class HomeBaseService {
 
 		// Fallback check
 		const homeBaseSettings = this.plugin.getHomeBaseSettings();
-		const homeBasePath = homeBaseSettings.value || (this.plugin.settings as { homeBasePath?: string }).homeBasePath;
+		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.app);
 		if (!homeBasePath) return false;
 
 		const viewState = leaf.getViewState();
@@ -876,11 +876,11 @@ export class HomeBaseService {
 	 * Get the home base file
 	 */
 	getHomeBaseFile(): TFile | null {
-		const settings = this.plugin.settings;
-		if (!settings.homeBasePath) {
-			return null;
-		}
-		return getFileByPath(this.app, settings.homeBasePath);
+		const homeBaseSettings = this.plugin.getHomeBaseSettings();
+		const path = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.app);
+		if (!path) return null;
+		
+		return getFileByPath(this.app, path);
 	}
 
 	/**
@@ -996,22 +996,12 @@ export class HomeBaseService {
 		if (!activeFile) return false;
 
 		const homeBaseSettings = this.plugin.getHomeBaseSettings();
+		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.app);
 		
-		// If it's a file type, we can check path directly (fast)
-		if (homeBaseSettings.type === HomeBaseType.File) {
-			const homeBasePath = homeBaseSettings.value || this.plugin.settings.homeBasePath;
-			if (!homeBasePath) return false;
-
-			const homeBaseFile = getFileByPath(this.app, homeBasePath);
-			if (!homeBaseFile) return false;
-
-			return activeFile.path === homeBaseFile.path;
+		if (homeBasePath) {
+			return activeFile.path === homeBasePath || pathsEqual(activeFile.path, homeBasePath);
 		}
 
-		// For other types, we might need more complex checking
-		// But usually being the active file is enough if we trust the last resolution
-		// or we can just rely on ghostLeaves for sticky icon active state
-		
 		return false;
 	}
 
@@ -1019,7 +1009,8 @@ export class HomeBaseService {
 	 * Check if home base file exists
 	 */
 	homeBaseExists(): boolean {
-		const path = this.plugin.settings.homeBasePath;
+		const homeBaseSettings = this.plugin.getHomeBaseSettings();
+		const path = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.app);
 		if (!path) return false;
 		
 		return getFileByPath(this.app, path) !== null;
@@ -1074,7 +1065,14 @@ export class HomeBaseService {
 			return false;
 		}
 
-		this.plugin.settings.homeBasePath = activeFile.path;
+		if (this.plugin.settings.separateMobile && Platform.isMobile) {
+			this.plugin.settings.mobileHomeBaseType = HomeBaseType.File;
+			this.plugin.settings.mobileHomeBaseValue = activeFile.path;
+		} else {
+			this.plugin.settings.homeBaseType = HomeBaseType.File;
+			this.plugin.settings.homeBaseValue = activeFile.path;
+		}
+		
 		await this.plugin.saveSettings();
 		return true;
 	}

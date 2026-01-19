@@ -295,20 +295,17 @@ export default class HomeBasePlugin extends Plugin {
 	getHomeBaseSettings(): {
 		type: HomeBaseType;
 		value: string;
-		path: string; // Legacy compatibility
 	} {
 		if (this.settings.separateMobile && Platform.isMobile) {
 			return {
 				type: this.settings.mobileHomeBaseType || HomeBaseType.File,
-				value: this.settings.mobileHomeBaseValue || this.settings.mobileHomeBasePath || '',
-				path: this.settings.mobileHomeBasePath || this.settings.mobileHomeBaseValue || '',
+				value: this.settings.mobileHomeBaseValue || '',
 			};
 		}
 		
 		return {
 			type: this.settings.homeBaseType || HomeBaseType.File,
-			value: this.settings.homeBaseValue || this.settings.homeBasePath || '',
-			path: this.settings.homeBasePath || this.settings.homeBaseValue || '',
+			value: this.settings.homeBaseValue || '',
 		};
 	}
 
@@ -319,46 +316,24 @@ export default class HomeBasePlugin extends Plugin {
 	getNewTabSettings(): {
 		type: HomeBaseType;
 		value: string;
-		path: string; // Legacy compatibility
 	} {
 		// If not using different file for new tab, fall back to home base settings
 		if (!this.settings.useDifferentFileForNewTab) {
-			const homeBaseSettings = this.getHomeBaseSettings();
-			console.debug('[Home Base] getNewTabSettings: Using home base settings (useDifferentFileForNewTab is false)', homeBaseSettings);
-			return homeBaseSettings;
+			return this.getHomeBaseSettings();
 		}
 
 		// Use new tab settings, checking for mobile if separate mobile is enabled
-		let settings: { type: HomeBaseType; value: string; path: string };
-		
 		if (this.settings.newTabSeparateMobile && Platform.isMobile) {
-			settings = {
+			return {
 				type: this.settings.mobileNewTabType || HomeBaseType.File,
 				value: this.settings.mobileNewTabValue || '',
-				path: this.settings.mobileNewTabValue || '',
-			};
-		} else {
-			settings = {
-				type: this.settings.newTabType || HomeBaseType.File,
-				value: this.settings.newTabValue || '',
-				path: this.settings.newTabValue || '',
 			};
 		}
 		
-		// Validate settings
-		if (!settings.value && settings.type === HomeBaseType.File) {
-			console.warn('[Home Base] getNewTabSettings: newTabValue is empty for File type, falling back to home base settings');
-			return this.getHomeBaseSettings();
-		}
-		
-		console.debug('[Home Base] getNewTabSettings: Using new tab settings', {
-			useDifferentFileForNewTab: this.settings.useDifferentFileForNewTab,
-			newTabSeparateMobile: this.settings.newTabSeparateMobile,
-			isMobile: Platform.isMobile,
-			settings: settings
-		});
-		
-		return settings;
+		return {
+			type: this.settings.newTabType || HomeBaseType.File,
+			value: this.settings.newTabValue || '',
+		};
 	}
 
 	/**

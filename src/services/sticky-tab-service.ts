@@ -5,7 +5,8 @@
 
 import { Menu, Platform, setIcon, WorkspaceLeaf } from 'obsidian';
 import type HomeBasePlugin from '../main';
-import { getFileByPath, leafHasFile } from '../utils/file-utils';
+import { getFileByPath, leafHasFile, pathsEqual } from '../utils/file-utils';
+import { resolvePathSync } from '../utils/homebase-resolver';
 import { IconPicker } from '../ui/icon-picker';
 
 /**
@@ -678,7 +679,7 @@ export class StickyTabService {
 		// Now update other tab headers in requestAnimationFrame (non-critical)
 		requestAnimationFrame(() => {
 			const homeBaseSettings = this.plugin.getHomeBaseSettings();
-			const homeBasePath = homeBaseSettings.value || this.plugin.settings.homeBasePath;
+			const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.plugin.app);
 
 			// Restore any non-ghost tabs that were incorrectly removed
 			this.plugin.app.workspace.iterateAllLeaves((leaf) => {
@@ -784,43 +785,31 @@ export class StickyTabService {
 	 * Other home base tabs are left alone
 	 */
 	async closeHomeBase(actuallyClose: boolean = false): Promise<void> {
-		const homeBasePath = this.plugin.settings.homeBasePath;
-		if (!homeBasePath) return;
-
-		const { getFileByPath } = await import('../utils/file-utils');
-		const homeBaseFile = getFileByPath(this.plugin.app, homeBasePath);
-		if (!homeBaseFile) return;
-
+		const homeBaseSettings = this.plugin.getHomeBaseSettings();
+		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.plugin.app);
+		
 		// Find the ghost tab (the "occupied" slot - pinned home base tab)
 		const ghostTabs: WorkspaceLeaf[] = [];
+		const allHomeBaseLeaves: WorkspaceLeaf[] = [];
 		
 		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
-			if (leafHasFile(leaf, homeBasePath)) {
-				try {
-					const viewState = leaf.getViewState();
-					if (viewState.pinned === true) {
-						ghostTabs.push(leaf);
-					}
-				} catch {
-					// Leaf might be detached, skip it
-				}
+			const isGhost = this.plugin.homeService.isGhostLeaf(leaf);
+			if (isGhost) {
+				ghostTabs.push(leaf);
+			}
+			
+			if (homeBasePath && leafHasFile(leaf, homeBasePath)) {
+				allHomeBaseLeaves.push(leaf);
 			}
 		});
 
 		if (this.plugin.settings.showStickyHomeIcon) {
-			// Sticky icon enabled: only close the ghost tab (the occupied slot)
-			// Other home base tabs are left alone
+			// Sticky icon enabled: only close the ghost tab(s)
 			for (const ghostTab of ghostTabs) {
 				void ghostTab.detach();
 			}
 		} else {
 			// Sticky icon disabled: close all home base tabs
-			const allHomeBaseLeaves: WorkspaceLeaf[] = [];
-			this.plugin.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
-				if (leafHasFile(leaf, homeBasePath)) {
-					allHomeBaseLeaves.push(leaf);
-				}
-			});
 			for (const leaf of allHomeBaseLeaves) {
 				void leaf.detach();
 			}
@@ -834,7 +823,8 @@ export class StickyTabService {
 	 * Pin the home base tab
 	 */
 	pinHomeBaseTab(): void {
-		const homeBasePath = this.plugin.settings.homeBasePath;
+		const homeBaseSettings = this.plugin.getHomeBaseSettings();
+		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.plugin.app);
 		if (!homeBasePath) return;
 
 		const homeBaseFile = getFileByPath(this.plugin.app, homeBasePath);
@@ -850,7 +840,8 @@ export class StickyTabService {
 	 * Unpin the home base tab
 	 */
 	unpinHomeBaseTab(): void {
-		const homeBasePath = this.plugin.settings.homeBasePath;
+		const homeBaseSettings = this.plugin.getHomeBaseSettings();
+		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.plugin.app);
 		if (!homeBasePath) return;
 
 		const homeBaseFile = getFileByPath(this.plugin.app, homeBasePath);
@@ -866,7 +857,8 @@ export class StickyTabService {
 	 * Check if the home base tab is pinned
 	 */
 	isHomeBaseTabPinned(): boolean {
-		const homeBasePath = this.plugin.settings.homeBasePath;
+		const homeBaseSettings = this.plugin.getHomeBaseSettings();
+		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.plugin.app);
 		if (!homeBasePath) return false;
 
 		const homeBaseFile = getFileByPath(this.plugin.app, homeBasePath);

@@ -3,14 +3,14 @@
  * Resolves home base paths based on type (File, Workspace, Random, etc.)
  */
 
-import { App, TFile, TFolder } from 'obsidian';
+import { App, TFile, TFolder, moment } from 'obsidian';
 import { HomeBaseType } from '../settings';
 import type HomeBasePlugin from '../main';
 import {
-	createDailyNote, getDailyNote, getAllDailyNotes,
-	createWeeklyNote, getWeeklyNote, getAllWeeklyNotes,
-	createMonthlyNote, getMonthlyNote, getAllMonthlyNotes,
-	createYearlyNote, getYearlyNote, getAllYearlyNotes,
+	createDailyNote, getDailyNote, getAllDailyNotes, getDailyNoteSettings,
+	createWeeklyNote, getWeeklyNote, getAllWeeklyNotes, getWeeklyNoteSettings,
+	createMonthlyNote, getMonthlyNote, getAllMonthlyNotes, getMonthlyNoteSettings,
+	createYearlyNote, getYearlyNote, getAllYearlyNotes, getYearlyNoteSettings,
 } from 'obsidian-daily-notes-interface';
 
 /**
@@ -126,6 +126,7 @@ const PERIODIC_INFO: Record<HomeBaseType, PeriodicInfo | null> = {
 	[HomeBaseType.Graph]: null,
 	[HomeBaseType.None]: null,
 	[HomeBaseType.Journal]: null,
+	[HomeBaseType.NewNote]: null,
 };
 
 /**
@@ -142,133 +143,124 @@ async function getPeriodicNote(kind: HomeBaseType, plugin: HomeBasePlugin): Prom
 		return null;
 	}
 	
-	// Get the current date for the period (like homepage plugin)
-	const date = window.moment().startOf(info.noun as moment.unitOfTime.StartOf);
+	const date = moment().startOf(info.noun as moment.unitOfTime.StartOf);
+	const communityPlugins = (plugin.app as any).plugins?.plugins || {};
+	const periodicNotesPlugin = communityPlugins['periodic-notes'];
+	const isLegacy = !periodicNotesPlugin || (periodicNotesPlugin.manifest?.version || '0').startsWith('0');
 	
-	// For daily notes, try core daily notes plugin first (like homepage plugin)
-	if (kind === HomeBaseType.DailyNote && plugin.app.internalPlugins?.plugins?.['daily-notes']?.enabled) {
-		const dailyNotes = plugin.app.internalPlugins.plugins['daily-notes'].instance;
-		if (dailyNotes?.getDailyNotePath) {
-			const today = window.moment();
-			const path = dailyNotes.getDailyNotePath(today);
-			if (path) {
-				return path.replace(/\.md$/, '');
-			}
+	let note: TFile | null = null;
+	
+	if (isLegacy) {
+		// Legacy Periodic Notes or Core Daily Notes (via interface)
+		let all = info.getAll();
+		note = info.get(date, all);
+		
+		// If note doesn't exist and wait for git sync is enabled, wait before creating
+		if (!note && plugin.settings.waitForGitSync) {
+			await delay(plugin.settings.gitSyncTimeout * 1000);
+			all = info.getAll();
+			note = info.get(date, all);
+		}
+		
+		if (!note) {
+			note = await info.create(date);
+		}
+	} else {
+		// v1.0.0+ Periodic Notes API
+		periodicNotesPlugin.cache?.initialize?.();
+		note = periodicNotesPlugin.getPeriodicNote?.(info.noun, date);
+		
+		// If note doesn't exist and wait for git sync is enabled, wait before creating
+		if (!note && plugin.settings.waitForGitSync) {
+			await delay(plugin.settings.gitSyncTimeout * 1000);
+			periodicNotesPlugin.cache?.initialize?.();
+			note = periodicNotesPlugin.getPeriodicNote?.(info.noun, date);
+		}
+		
+		if (!note) {
+			note = await periodicNotesPlugin.createPeriodicNote?.(info.noun, date);
 		}
 	}
 	
-	// Use periodic notes plugin (like homepage plugin)
-	const periodicNotesPlugin = plugin.app.plugins?.plugins?.['periodic-notes'] as {
-		getPeriodicNote?: (noun: 'day' | 'week' | 'month' | 'year', date: moment.Moment) => TFile | null;
-		createPeriodicNote?: (noun: 'day' | 'week' | 'month' | 'year', date: moment.Moment) => Promise<TFile>;
-		cache?: {
-			initialize?: () => void;
-		};
-		manifest?: {
-			version?: string;
-		};
-	} | undefined;
-	
-	if (!periodicNotesPlugin) {
-		return null;
-	}
-	
-	try {
-		// Check if legacy periodic notes (version starts with "0") - exactly like homepage plugin
-		const isLegacy = (periodicNotesPlugin.manifest?.version || '0').startsWith('0');
-		
-		let note: TFile | null = null;
-		
-		if (isLegacy) {
-			// Legacy periodic notes - use obsidian-daily-notes-interface (exactly like homepage plugin)
-			const all = info.getAll();
-			
-			if (!Object.keys(all).length) {
-				note = await info.create(date);
-			} else {
-				note = info.get(date, all) || await info.create(date);
-			}
-			
-			if (!note) {
-				note = info.get(date, all);
-			}
-		} else {
-			// New periodic notes - exactly like homepage plugin
-			if (periodicNotesPlugin.cache?.initialize) {
-				periodicNotesPlugin.cache.initialize();
-			}
-			
-			note = (
-				periodicNotesPlugin.getPeriodicNote?.(info.noun as 'day' | 'week' | 'month' | 'year', date) ||
-				await periodicNotesPlugin.createPeriodicNote?.(info.noun as 'day' | 'week' | 'month' | 'year', date)
-			) || null;
-		}
-		
-		if (note) {
-			return trimFile(note);
-		}
-		
-		return null;
-	} catch {
-		return null;
-	}
+	return note ? trimFile(note) : null;
 }
 
 /**
  * Get journal note path
  */
 async function getJournalNote(journalName: string, plugin: HomeBasePlugin): Promise<string | null> {
-	 
-	const journals = plugin.app.plugins?.plugins?.['journals'];
+	const communityPlugins = (plugin.app as any).plugins?.plugins || {};
+	const journals = communityPlugins['journals'];
 	if (!journals) return null;
 	
 	try {
-		// Accessing internal plugin API - structure not fully typed
-		type JournalEntry = {
-			name?: string;
-			config?: {
-				value?: {
-					autoCreate?: boolean;
-				};
-			};
-			autoCreate?: () => Promise<void>;
-			get?: (date: moment.Moment) => TFile | null;
-			getNotePath?: (file: TFile) => string;
-		};
-		const journal = (journals.journals as JournalEntry[] | undefined)?.find((j) => j.name === journalName);
+		const journal = journals.getJournal?.(journalName);
 		if (!journal) return null;
 		
-		// Trigger auto-create if needed
-		 
-		journals.reprocessNotes?.();
-		 
 		const origAutoCreate = journal.config?.value?.autoCreate;
-		 
+		
+		// Trigger auto-create (hacky logic from homepage plugin)
+		journals.reprocessNotes?.();
 		if (journal.config?.value) {
-			 
 			journal.config.value.autoCreate = true;
 		}
-		 
+		
 		await journal.autoCreate?.();
-		 
+		
 		if (journal.config?.value) {
-			 
 			journal.config.value.autoCreate = origAutoCreate;
 		}
 		
-		if (!window.moment) return null;
-		 
-		const today = window.moment().locale('custom-journal-locale').startOf('day');
-		 
-		const note = journal.get?.(today);
+		const today = moment().locale('custom-journal-locale').startOf('day');
+		
+		// If note doesn't exist and wait for git sync is enabled, wait
+		let note = journal.get?.(today);
+		if (!note && plugin.settings.waitForGitSync) {
+			await delay(plugin.settings.gitSyncTimeout * 1000);
+			journals.reprocessNotes?.();
+			note = journal.get?.(today);
+		}
+		
 		if (!note) return null;
 		
-		 
 		const path = journal.getNotePath?.(note);
-		 
 		return path ? path.replace(/\.md$/, '') : null;
 	} catch {
 		return null;
+	}
+}
+
+/**
+ * Compute the actual file path based on home base type synchronously
+ * Used for comparison and UI updates where async is not possible
+ */
+export function resolvePathSync(
+	type: HomeBaseType,
+	value: string,
+	app: App
+): string | null {
+	switch (type) {
+		case HomeBaseType.File:
+			return value || null;
+		
+		case HomeBaseType.DailyNote:
+		case HomeBaseType.WeeklyNote:
+		case HomeBaseType.MonthlyNote:
+		case HomeBaseType.YearlyNote: {
+			const info = PERIODIC_INFO[type];
+			if (info) {
+				const date = moment().startOf(info.noun as any);
+				const all = info.getAll();
+				const note = info.get(date, all);
+				return note ? trimFile(note) : null;
+			}
+			return null;
+		}
+
+		default:
+			// For Random, Journal, NewNote, etc., we can't reliably resolve synchronously
+			// but we might return the value if it's a path
+			return (type === HomeBaseType.RandomFolder || type === HomeBaseType.NewNote) ? null : (value || null);
 	}
 }
 
@@ -303,6 +295,15 @@ export async function computeHomeBasePath(
 		case HomeBaseType.Journal:
 			return await getJournalNote(value, plugin);
 		
+		case HomeBaseType.NewNote: {
+			const fileManager = plugin.app.fileManager as any;
+			if (fileManager.createNewFile) {
+				const file = await fileManager.createNewFile(plugin.app.vault.getRoot(), value || 'Untitled');
+				return file ? trimFile(file) : null;
+			}
+			return null;
+		}
+		
 		case HomeBaseType.Workspace:
 		case HomeBaseType.Graph:
 		case HomeBaseType.None:
@@ -321,5 +322,12 @@ export function requiresFile(type: HomeBaseType): boolean {
 	return type !== HomeBaseType.Workspace && 
 	       type !== HomeBaseType.Graph && 
 	       type !== HomeBaseType.None;
+}
+
+/**
+ * Helper to wait for a specified duration
+ */
+function delay(ms: number): Promise<void> {
+	return new Promise(resolve => setTimeout(resolve, ms));
 }
 

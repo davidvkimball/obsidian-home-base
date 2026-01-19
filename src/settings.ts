@@ -17,6 +17,7 @@ export enum HomeBaseType {
 	Graph = 'Graph view',
 	None = 'Nothing',
 	Journal = 'Journal',
+	NewNote = 'New note',
 	DailyNote = 'Daily Note',
 	WeeklyNote = 'Weekly Note',
 	MonthlyNote = 'Monthly Note',
@@ -56,6 +57,8 @@ export interface HomeBaseSettings {
 
 	// Automation
 	commandOnOpen: string;
+	waitForGitSync: boolean;
+	gitSyncTimeout: number;
 	
 	// View behavior
 	revertView: boolean;
@@ -101,6 +104,8 @@ export const DEFAULT_SETTINGS: HomeBaseSettings = {
 
 	// Automation
 	commandOnOpen: '',
+	waitForGitSync: false,
+	gitSyncTimeout: 5, // Default 5 seconds
 	
 	// View behavior
 	revertView: false,

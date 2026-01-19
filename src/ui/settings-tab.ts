@@ -111,8 +111,8 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 				} else if (activeType === HomeBaseType.Workspace) {
 					desc = 'The workspace to load as your home base';
 					placeholder = 'Workspace name';
-				} else if (activeType === HomeBaseType.RandomFolder) {
-					desc = 'The folder to pick a random file from';
+				} else if (activeType === HomeBaseType.RandomFolder || activeType === HomeBaseType.NewNote) {
+					desc = activeType === HomeBaseType.RandomFolder ? 'The folder to pick a random file from' : 'The folder to create new notes in';
 					placeholder = 'Folder path';
 				} else if (activeType === HomeBaseType.Journal) {
 					desc = 'The journal name';
@@ -122,7 +122,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 				setting
 					.setName(activeType === HomeBaseType.File ? 'File' : 
 							activeType === HomeBaseType.Workspace ? 'Workspace' :
-							activeType === HomeBaseType.RandomFolder ? 'Folder' :
+							(activeType === HomeBaseType.RandomFolder || activeType === HomeBaseType.NewNote) ? 'Folder' :
 							activeType === HomeBaseType.Journal ? 'Journal' : 'Value')
 					.setDesc(desc)
 					.addText((text) => {
@@ -131,7 +131,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							new FilePathSuggest(this.app, text.inputEl);
 						} else if (activeType === HomeBaseType.Workspace) {
 							new WorkspaceSuggest(this.app, text.inputEl);
-						} else if (activeType === HomeBaseType.RandomFolder) {
+						} else if (activeType === HomeBaseType.RandomFolder || activeType === HomeBaseType.NewNote) {
 							new FolderSuggest(this.app, text.inputEl);
 						}
 						
@@ -141,16 +141,8 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							.onChange(async (value) => {
 								if (isMobile) {
 									this.plugin.settings.mobileHomeBaseValue = value;
-									// Also update legacy path for compatibility
-									if (activeType === HomeBaseType.File) {
-										this.plugin.settings.mobileHomeBasePath = value;
-									}
 								} else {
 									this.plugin.settings.homeBaseValue = value;
-									// Also update legacy path for compatibility
-									if (activeType === HomeBaseType.File) {
-										this.plugin.settings.homeBasePath = value;
-									}
 								}
 								await this.plugin.saveSettings();
 							});
@@ -694,9 +686,6 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 								.setValue(this.plugin.settings.mobileHomeBaseValue || '')
 								.onChange(async (value) => {
 									this.plugin.settings.mobileHomeBaseValue = value;
-									if (mobileType === HomeBaseType.File) {
-										this.plugin.settings.mobileHomeBasePath = value;
-									}
 									await this.plugin.saveSettings();
 								});
 						});
@@ -905,5 +894,41 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						});
 				});
 		});
+
+		automationGroup.addSetting((setting) => {
+			setting
+				.setName('Wait for git sync')
+				.setDesc('Wait before creating periodic or journal notes to allow git sync to finish pulling existing notes. Only applies when a note doesn\'t already exist.')
+				.addToggle((toggle) => {
+					toggle
+						.setValue(this.plugin.settings.waitForGitSync)
+						.onChange(async (value) => {
+							this.plugin.settings.waitForGitSync = value;
+							await this.plugin.saveSettings();
+							this.display(); // Re-render to show/hide timeout setting
+						});
+				});
+		});
+
+		if (this.plugin.settings.waitForGitSync) {
+			automationGroup.addSetting((setting) => {
+				setting
+					.setName('Git sync timeout (seconds)')
+					.setDesc('How long to wait for git sync to finish before creating a new note')
+					.addText((text) => {
+						text.inputEl.type = 'number';
+						text
+							.setPlaceholder('5')
+							.setValue(this.plugin.settings.gitSyncTimeout?.toString() || '5')
+							.onChange(async (value) => {
+								const numValue = parseInt(value);
+								if (!isNaN(numValue) && numValue >= 0) {
+									this.plugin.settings.gitSyncTimeout = numValue;
+									await this.plugin.saveSettings();
+								}
+							});
+					});
+			});
+		}
 	}
 }

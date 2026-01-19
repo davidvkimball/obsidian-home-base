@@ -8,7 +8,7 @@ import { App, TFile, WorkspaceLeaf } from 'obsidian';
 /**
  * Supported file extensions for home base
  */
-export const SUPPORTED_EXTENSIONS = ['md', 'mdx', 'canvas', 'base'] as const;
+export const SUPPORTED_EXTENSIONS = ['md', 'mdx', 'canvas', 'base', 'kanban'] as const;
 export type SupportedExtension = typeof SUPPORTED_EXTENSIONS[number];
 
 /**
@@ -19,6 +19,7 @@ export const VIEW_TYPE_MAP: Record<SupportedExtension, string> = {
 	'mdx': 'markdown',
 	'canvas': 'canvas',
 	'base': 'bases',
+	'kanban': 'kanban',
 };
 
 /**

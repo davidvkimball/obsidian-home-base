@@ -71,11 +71,11 @@ export class NewTabService {
 		// Need longer delay to ensure workspace is fully restored
 		await new Promise(resolve => setTimeout(resolve, 500));
 
-		// If keepExistingTabs is false, close ALL tabs first, then open home base
+		// If openMode is replace-all, close ALL tabs first, then open home base
 		// This should ONLY happen on startup, not when manually opening
 		// We close everything first, then open fresh - don't try to find tabs to keep
 		// Exception: If hideReleaseNotes is OFF, preserve release notes tab
-		if (!settings.keepExistingTabs) {
+		if (settings.openMode === 'replace-all') {
 			// If hideReleaseNotes is OFF, we should preserve release notes tab
 			let exceptLeaf: WorkspaceLeaf | null = null;
 			if (!settings.hideReleaseNotes) {

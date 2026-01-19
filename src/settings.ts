@@ -21,6 +21,7 @@ export enum HomeBaseType {
 	DailyNote = 'Daily Note',
 	WeeklyNote = 'Weekly Note',
 	MonthlyNote = 'Monthly Note',
+	QuarterlyNote = 'Quarterly Note',
 	YearlyNote = 'Yearly Note',
 }
 
@@ -150,5 +151,6 @@ export const UNCHANGEABLE_TYPES: HomeBaseType[] = [
 	HomeBaseType.DailyNote,
 	HomeBaseType.WeeklyNote,
 	HomeBaseType.MonthlyNote,
+	HomeBaseType.QuarterlyNote,
 	HomeBaseType.YearlyNote,
 ];

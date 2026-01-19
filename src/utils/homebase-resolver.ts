@@ -10,6 +10,7 @@ import {
 	createDailyNote, getDailyNote, getAllDailyNotes, getDailyNoteSettings,
 	createWeeklyNote, getWeeklyNote, getAllWeeklyNotes, getWeeklyNoteSettings,
 	createMonthlyNote, getMonthlyNote, getAllMonthlyNotes, getMonthlyNoteSettings,
+	createQuarterlyNote, getQuarterlyNote, getAllQuarterlyNotes, getQuarterlyNoteSettings,
 	createYearlyNote, getYearlyNote, getAllYearlyNotes, getYearlyNoteSettings,
 } from 'obsidian-daily-notes-interface';
 
@@ -111,6 +112,13 @@ const PERIODIC_INFO: Record<HomeBaseType, PeriodicInfo | null> = {
 		create: createMonthlyNote,
 		get: getMonthlyNote,
 		getAll: getAllMonthlyNotes,
+	},
+	[HomeBaseType.QuarterlyNote]: {
+		noun: 'quarter',
+		adjective: 'quarterly',
+		create: createQuarterlyNote,
+		get: getQuarterlyNote,
+		getAll: getAllQuarterlyNotes,
 	},
 	[HomeBaseType.YearlyNote]: {
 		noun: 'year',
@@ -246,6 +254,7 @@ export function resolvePathSync(
 		case HomeBaseType.DailyNote:
 		case HomeBaseType.WeeklyNote:
 		case HomeBaseType.MonthlyNote:
+		case HomeBaseType.QuarterlyNote:
 		case HomeBaseType.YearlyNote: {
 			const info = PERIODIC_INFO[type];
 			if (info) {
@@ -289,6 +298,7 @@ export async function computeHomeBasePath(
 		case HomeBaseType.DailyNote:
 		case HomeBaseType.WeeklyNote:
 		case HomeBaseType.MonthlyNote:
+		case HomeBaseType.QuarterlyNote:
 		case HomeBaseType.YearlyNote:
 			return await getPeriodicNote(type, plugin);
 		

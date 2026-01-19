@@ -513,6 +513,7 @@ export default class HomeBasePlugin extends Plugin {
 			case HomeBaseType.DailyNote:
 			case HomeBaseType.WeeklyNote:
 			case HomeBaseType.MonthlyNote:
+			case HomeBaseType.QuarterlyNote:
 			case HomeBaseType.YearlyNote:
 				return this.hasRequiredPeriodicity(type);
 			default:
@@ -560,6 +561,7 @@ export default class HomeBasePlugin extends Plugin {
 			const periodMap: Partial<Record<HomeBaseType, string>> = {
 				[HomeBaseType.WeeklyNote]: 'weekly',
 				[HomeBaseType.MonthlyNote]: 'monthly',
+				[HomeBaseType.QuarterlyNote]: 'quarterly',
 				[HomeBaseType.YearlyNote]: 'yearly',
 			};
 			 
@@ -572,6 +574,7 @@ export default class HomeBasePlugin extends Plugin {
 			const nounMap: Partial<Record<HomeBaseType, string>> = {
 				[HomeBaseType.WeeklyNote]: 'week',
 				[HomeBaseType.MonthlyNote]: 'month',
+				[HomeBaseType.QuarterlyNote]: 'quarter',
 				[HomeBaseType.YearlyNote]: 'year',
 			};
 			 

@@ -92,7 +92,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 					// Show warning if current type requires a disabled plugin
 					if (pluginDisabled) {
 						setting.descEl.createDiv({
-							text: 'The plugin required for this home page type isn\'t available.',
+							text: 'The required plugin has not been enabled or configured for this type.',
 							cls: 'mod-warning'
 						});
 					}
@@ -420,7 +420,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							// Show warning if current type requires a disabled plugin
 							if (pluginDisabled) {
 								setting.descEl.createDiv({
-									text: 'The plugin required for this new tab type isn\'t available.',
+									text: 'The required plugin has not been enabled or configured for this type.',
 									cls: 'mod-warning'
 								});
 							}
@@ -639,7 +639,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						// Show warning if current type requires a disabled plugin
 						if (pluginDisabled) {
 							setting.descEl.createDiv({
-								text: 'The plugin required for this home page type isn\'t available.',
+								text: 'The required plugin has not been enabled or configured for this type.',
 								cls: 'mod-warning'
 							});
 						}
@@ -791,7 +791,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							// Show warning if current type requires a disabled plugin
 							if (pluginDisabled) {
 								setting.descEl.createDiv({
-									text: 'The plugin required for this mobile new tab type isn\'t available.',
+									text: 'The required plugin has not been enabled or configured for this type.',
 									cls: 'mod-warning'
 								});
 							}

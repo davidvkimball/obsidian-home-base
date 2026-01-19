@@ -434,11 +434,11 @@ export default class HomeBasePlugin extends Plugin {
 				
 				// Use ghost tab if sticky icon is enabled, otherwise use normal open
 				if (this.settings.showStickyHomeIcon) {
-					await this.homeService.openHomeBaseInGhostTab({
+					void this.homeService.openHomeBaseInGhostTab({
 						runCommand: true,
 					});
 				} else {
-					await this.homeService.openHomeBaseWithMode(mode, true);
+					void this.homeService.openHomeBaseWithMode(mode, true);
 				}
 			} else {
 				// Call original behavior

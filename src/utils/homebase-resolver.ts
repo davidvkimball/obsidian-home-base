@@ -3,7 +3,7 @@
  * Resolves home base paths based on type (File, Workspace, Random, etc.)
  */
 
-import { App, TFile, TFolder, moment } from 'obsidian';
+import { App, TFile, TFolder, moment, Notice } from 'obsidian';
 import { HomeBaseType } from '../settings';
 import type HomeBasePlugin from '../main';
 import {
@@ -165,6 +165,7 @@ async function getPeriodicNote(kind: HomeBaseType, plugin: HomeBasePlugin): Prom
 		
 		// If note doesn't exist and wait for git sync is enabled, wait before creating
 		if (!note && plugin.settings.waitForGitSync) {
+			new Notice(`Home Base: Waiting for git sync (${plugin.settings.gitSyncTimeout}s)...`, 5000);
 			await delay(plugin.settings.gitSyncTimeout * 1000);
 			all = info.getAll();
 			note = info.get(date, all);
@@ -180,6 +181,7 @@ async function getPeriodicNote(kind: HomeBaseType, plugin: HomeBasePlugin): Prom
 		
 		// If note doesn't exist and wait for git sync is enabled, wait before creating
 		if (!note && plugin.settings.waitForGitSync) {
+			new Notice(`Home Base: Waiting for git sync (${plugin.settings.gitSyncTimeout}s)...`, 5000);
 			await delay(plugin.settings.gitSyncTimeout * 1000);
 			periodicNotesPlugin.cache?.initialize?.();
 			note = periodicNotesPlugin.getPeriodicNote?.(info.noun, date);
@@ -224,6 +226,7 @@ async function getJournalNote(journalName: string, plugin: HomeBasePlugin): Prom
 		// If note doesn't exist and wait for git sync is enabled, wait
 		let note = journal.get?.(today);
 		if (!note && plugin.settings.waitForGitSync) {
+			new Notice(`Home Base: Waiting for git sync (${plugin.settings.gitSyncTimeout}s)...`, 5000);
 			await delay(plugin.settings.gitSyncTimeout * 1000);
 			journals.reprocessNotes?.();
 			note = journal.get?.(today);

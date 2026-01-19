@@ -918,8 +918,8 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 					.addText((text) => {
 						text.inputEl.type = 'number';
 						text
-							.setPlaceholder('5')
-							.setValue(this.plugin.settings.gitSyncTimeout?.toString() || '5')
+							.setPlaceholder('3')
+							.setValue(this.plugin.settings.gitSyncTimeout?.toString() || '3')
 							.onChange(async (value) => {
 								const numValue = parseInt(value);
 								if (!isNaN(numValue) && numValue >= 0) {

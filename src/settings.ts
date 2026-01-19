@@ -106,7 +106,7 @@ export const DEFAULT_SETTINGS: HomeBaseSettings = {
 	// Automation
 	commandOnOpen: '',
 	waitForGitSync: false,
-	gitSyncTimeout: 5, // Default 5 seconds
+	gitSyncTimeout: 3, // Default 3 seconds
 	
 	// View behavior
 	revertView: false,

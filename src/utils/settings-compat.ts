@@ -30,6 +30,11 @@ export function createSettingsGroup(
 	heading?: string,
 	manifestId?: string
 ): SettingsContainer {
+	// Always add scoping class to containerEl to scope CSS to only this plugin's settings
+	if (manifestId) {
+		containerEl.addClass(`${manifestId}-settings-compat`);
+	}
+
 	// Check if SettingGroup is available (API 1.11.0+)
 	if (requireApiVersion('1.11.0')) {
 		// Access SettingGroup via type assertion since it may not be in type definitions
@@ -39,9 +44,9 @@ export function createSettingsGroup(
 			};
 			addSetting(cb: (setting: Setting) => void): void;
 		} }).SettingGroup;
-		
+
 		if (SettingGroupClass) {
-			const group = heading 
+			const group = heading
 				? new SettingGroupClass(containerEl).setHeading(heading)
 				: new SettingGroupClass(containerEl);
 			return {
@@ -51,12 +56,8 @@ export function createSettingsGroup(
 			};
 		}
 	}
-	
+
 	// Fallback path (either API < 1.11.0 or SettingGroup not found)
-	// Add scoping class to containerEl to scope CSS to only this plugin's settings
-	if (manifestId) {
-		containerEl.addClass(`${manifestId}-settings-compat`);
-	}
 	
 	if (heading) {
 		const headingEl = containerEl.createDiv('setting-group-heading');

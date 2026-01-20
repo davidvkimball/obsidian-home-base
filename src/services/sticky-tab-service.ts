@@ -5,7 +5,7 @@
 
 import { Menu, Platform, setIcon, WorkspaceLeaf } from 'obsidian';
 import type HomeBasePlugin from '../main';
-import { getFileByPath, leafHasFile, pathsEqual } from '../utils/file-utils';
+import { getFileByPath, leafHasFile } from '../utils/file-utils';
 import { resolvePathSync } from '../utils/homebase-resolver';
 import { IconPicker } from '../ui/icon-picker';
 
@@ -784,7 +784,7 @@ export class StickyTabService {
 	 * When called from context menu: Only closes the ghost tab (the "occupied" slot)
 	 * Other home base tabs are left alone
 	 */
-	async closeHomeBase(actuallyClose: boolean = false): Promise<void> {
+	closeHomeBase(actuallyClose: boolean = false): void {
 		const homeBaseSettings = this.plugin.getHomeBaseSettings();
 		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.plugin.app);
 		

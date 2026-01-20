@@ -7,11 +7,11 @@ import { App, TFile, TFolder, moment, Notice } from 'obsidian';
 import { HomeBaseType } from '../settings';
 import type HomeBasePlugin from '../main';
 import {
-	createDailyNote, getDailyNote, getAllDailyNotes, getDailyNoteSettings,
-	createWeeklyNote, getWeeklyNote, getAllWeeklyNotes, getWeeklyNoteSettings,
-	createMonthlyNote, getMonthlyNote, getAllMonthlyNotes, getMonthlyNoteSettings,
-	createQuarterlyNote, getQuarterlyNote, getAllQuarterlyNotes, getQuarterlyNoteSettings,
-	createYearlyNote, getYearlyNote, getAllYearlyNotes, getYearlyNoteSettings,
+	createDailyNote, getDailyNote, getAllDailyNotes,
+	createWeeklyNote, getWeeklyNote, getAllWeeklyNotes,
+	createMonthlyNote, getMonthlyNote, getAllMonthlyNotes,
+	createQuarterlyNote, getQuarterlyNote, getAllQuarterlyNotes,
+	createYearlyNote, getYearlyNote, getAllYearlyNotes,
 } from 'obsidian-daily-notes-interface';
 
 /**
@@ -152,7 +152,7 @@ async function getPeriodicNote(kind: HomeBaseType, plugin: HomeBasePlugin): Prom
 	}
 	
 	const date = moment().startOf(info.noun as moment.unitOfTime.StartOf);
-	const communityPlugins = (plugin.app as any).plugins?.plugins || {};
+	const communityPlugins = plugin.app.plugins?.plugins || {};
 	const periodicNotesPlugin = communityPlugins['periodic-notes'];
 	const isLegacy = !periodicNotesPlugin || (periodicNotesPlugin.manifest?.version || '0').startsWith('0');
 	
@@ -177,18 +177,18 @@ async function getPeriodicNote(kind: HomeBaseType, plugin: HomeBasePlugin): Prom
 	} else {
 		// v1.0.0+ Periodic Notes API
 		periodicNotesPlugin.cache?.initialize?.();
-		note = periodicNotesPlugin.getPeriodicNote?.(info.noun, date);
+		note = periodicNotesPlugin.getPeriodicNote?.(info.noun as 'day' | 'week' | 'month' | 'year', date) ?? null;
 		
 		// If note doesn't exist and wait for git sync is enabled, wait before creating
 		if (!note && plugin.settings.waitForGitSync) {
 			new Notice(`Home Base: Waiting for git sync (${plugin.settings.gitSyncTimeout}s)...`, 5000);
 			await delay(plugin.settings.gitSyncTimeout * 1000);
 			periodicNotesPlugin.cache?.initialize?.();
-			note = periodicNotesPlugin.getPeriodicNote?.(info.noun, date);
+			note = periodicNotesPlugin.getPeriodicNote?.(info.noun as 'day' | 'week' | 'month' | 'year', date) ?? null;
 		}
 		
 		if (!note) {
-			note = await periodicNotesPlugin.createPeriodicNote?.(info.noun, date);
+			note = await periodicNotesPlugin.createPeriodicNote?.(info.noun as 'day' | 'week' | 'month' | 'year', date) ?? null;
 		}
 	}
 	
@@ -199,7 +199,7 @@ async function getPeriodicNote(kind: HomeBaseType, plugin: HomeBasePlugin): Prom
  * Get journal note path
  */
 async function getJournalNote(journalName: string, plugin: HomeBasePlugin): Promise<string | null> {
-	const communityPlugins = (plugin.app as any).plugins?.plugins || {};
+	const communityPlugins = plugin.app.plugins?.plugins || {};
 	const journals = communityPlugins['journals'];
 	if (!journals) return null;
 	
@@ -261,7 +261,7 @@ export function resolvePathSync(
 		case HomeBaseType.YearlyNote: {
 			const info = PERIODIC_INFO[type];
 			if (info) {
-				const date = moment().startOf(info.noun as any);
+				const date = moment().startOf(info.noun as moment.unitOfTime.StartOf);
 				const all = info.getAll();
 				const note = info.get(date, all);
 				return note ? trimFile(note) : null;
@@ -309,7 +309,7 @@ export async function computeHomeBasePath(
 			return await getJournalNote(value, plugin);
 		
 		case HomeBaseType.NewNote: {
-			const fileManager = plugin.app.fileManager as any;
+			const fileManager = plugin.app.fileManager;
 			if (fileManager.createNewFile) {
 				const file = await fileManager.createNewFile(plugin.app.vault.getRoot(), value || 'Untitled');
 				return file ? trimFile(file) : null;

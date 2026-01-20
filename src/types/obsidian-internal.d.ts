@@ -5,7 +5,7 @@
 
 /// <reference types="moment" />
 
-import { TFile } from 'obsidian';
+import { TFile, TFolder } from 'obsidian';
 
 declare module 'obsidian' {
 	interface App {
@@ -50,6 +50,17 @@ declare module 'obsidian' {
 					settings?: Record<string, { enabled?: boolean }>;
 				};
 				journals?: {
+					getJournal?: (name: string) => {
+						name?: string;
+						config?: {
+							value?: {
+								autoCreate?: boolean;
+							};
+						};
+						autoCreate?: () => Promise<void>;
+						get?: (date: moment.Moment) => TFile | null;
+						getNotePath?: (file: TFile) => string;
+					};
 					journals?: Array<{
 						name?: string;
 						config?: {

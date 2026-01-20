@@ -225,8 +225,8 @@ export default class HomeBasePlugin extends Plugin {
 		this.addCommand({
 			id: 'close',
 			name: 'Close',
-			callback: async () => {
-				await this.stickyTabService.closeHomeBase();
+			callback: () => {
+				this.stickyTabService.closeHomeBase();
 			},
 		});
 	}

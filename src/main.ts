@@ -98,7 +98,10 @@ export default class HomeBasePlugin extends Plugin {
 					// for new tab replacement to work
 					this.newTabService.trackExistingLeaves();
 				}
-				
+
+				// Restore ghost leaves from previous session before updating UI
+				this.homeService.restoreGhostLeaves();
+
 				// Mark startup as complete after a delay to allow everything to settle
 				setTimeout(() => {
 					this.isStartup = false;
@@ -107,7 +110,7 @@ export default class HomeBasePlugin extends Plugin {
 				// Update UI features
 				this.updateStickyTabIcon();
 				this.updateMobileButton();
-				
+
 				// Update tab headers after layout is ready
 				this.stickyTabService.updateTabHeaders();
 			}, 100); // Small delay to ensure DOM is ready

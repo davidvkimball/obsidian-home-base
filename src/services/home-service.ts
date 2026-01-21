@@ -661,40 +661,17 @@ export class HomeBaseService {
 
 	/**
 	 * Check if a leaf is a ghost tab
-	 * Ghost tab is identified by:
-	 * 1. Being in our internal ghostLeaves set
-	 * 2. OR being a pinned tab showing the home base file
+	 * Ghost tab is identified by being in our internal ghostLeaves set
+	 * Only tabs specifically created for the sticky icon are ghost tabs
 	 */
 	isGhostLeaf(leaf: WorkspaceLeaf): boolean {
-		if (this.ghostLeaves.has(leaf)) return true;
-
-		// Fallback check
-		const homeBaseSettings = this.plugin.getHomeBaseSettings();
-		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.app);
-		if (!homeBasePath) return false;
-
-		const viewState = leaf.getViewState();
-		const isPinned = viewState.pinned === true;
-		if (!isPinned) return false;
-
-		// Check file path from view state directly if view is not ready
-		const state = viewState.state as Record<string, unknown>;
-		const filePath = state?.file;
-		if (typeof filePath === 'string' && pathsEqual(filePath, homeBasePath)) {
-			// Found it! Add to WeakSet for future fast lookup
-			this.ghostLeaves.add(leaf);
-			return true;
-		}
-
-		// Final fallback using leafHasFile if view is ready
-		return leafHasFile(leaf, homeBasePath);
+		return this.ghostLeaves.has(leaf);
 	}
 
 	/**
 	 * Find the ghost tab (the one opened via sticky icon)
-	 * Ghost tab is identified by:
-	 * 1. Being in our internal ghostLeaves set (primary source)
-	 * 2. OR being a pinned tab showing the home base file (fallback for startup/dynamic types)
+	 * Ghost tab is identified by being in our internal ghostLeaves set
+	 * Only returns existing ghost tabs, doesn't create new ones
 	 */
 	findGhostTab(file?: TFile, isRandom: boolean = false): WorkspaceLeaf | null {
 		if (!file) return null;
@@ -709,25 +686,10 @@ export class HomeBaseService {
 			}
 		});
 
-		// 1. Check for a match in our WeakSet (most accurate for dynamic types)
+		// Check for a match in our WeakSet
 		for (const leaf of leaves) {
-			if (this.ghostLeaves.has(leaf)) {
-				if (leafHasFile(leaf, homeBasePath)) {
-					return leaf;
-				}
-			}
-		}
-
-		// 2. Fallback: Check for a pinned tab showing the file (handles startup/restoration)
-		for (const leaf of leaves) {
-			if (leafHasFile(leaf, homeBasePath)) {
-				const viewState = leaf.getViewState();
-				// Ghost tab is pinned (unless it's a random file type which doesn't pin)
-				if (isRandom || viewState.pinned === true) {
-					// Found it! Add it to our WeakSet so we track it as a ghost from now on
-					this.ghostLeaves.add(leaf);
-					return leaf;
-				}
+			if (this.ghostLeaves.has(leaf) && leafHasFile(leaf, homeBasePath)) {
+				return leaf;
 			}
 		}
 
@@ -1085,5 +1047,50 @@ export class HomeBaseService {
 		if (!activeFile) return false;
 
 		return isSupportedExtension(activeFile.extension.toLowerCase());
+	}
+
+	/**
+	 * Restore ghost leaves from previous session
+	 * This identifies pinned home base tabs that should be treated as ghost leaves
+	 */
+	restoreGhostLeaves(): void {
+		if (!this.plugin.settings.showStickyHomeIcon) {
+			return;
+		}
+
+		const homeBaseSettings = this.plugin.getHomeBaseSettings();
+		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.app);
+		if (!homeBasePath) return;
+
+		// For random/dynamic types, we don't restore ghost leaves
+		const isRandom = homeBaseSettings.type === HomeBaseType.Random ||
+		                 homeBaseSettings.type === HomeBaseType.RandomFolder ||
+		                 homeBaseSettings.type === HomeBaseType.DailyNote ||
+		                 homeBaseSettings.type === HomeBaseType.WeeklyNote ||
+		                 homeBaseSettings.type === HomeBaseType.MonthlyNote ||
+		                 homeBaseSettings.type === HomeBaseType.YearlyNote;
+
+		if (isRandom) return;
+
+		// Find pinned home base tabs and mark the first one as a ghost leaf
+		const leaves: WorkspaceLeaf[] = [];
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			const viewType = leaf.view?.getViewType();
+			if (viewType && LEAF_TYPES.includes(viewType)) {
+				leaves.push(leaf);
+			}
+		});
+
+		for (const leaf of leaves) {
+			if (leafHasFile(leaf, homeBasePath)) {
+				const viewState = leaf.getViewState();
+				if (viewState.pinned === true && !this.ghostLeaves.has(leaf)) {
+					// Found a pinned home base tab - mark it as ghost
+					this.ghostLeaves.add(leaf);
+					// Only restore one ghost leaf (the first pinned home base tab)
+					break;
+				}
+			}
+		}
 	}
 }

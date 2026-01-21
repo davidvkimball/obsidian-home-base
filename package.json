@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-home-base",
-	"version": "0.2.3",
+	"version": "0.2.4",
 	"description": "Your dedicated home in your vault.",
 	"main": "main.js",
 	"type": "module",

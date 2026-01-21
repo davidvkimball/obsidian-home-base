@@ -329,17 +329,41 @@ export class StickyTabService {
 			if (hasNewHeaders) {
 				// Immediately remove any ghost tab headers that appeared
 				this.plugin.app.workspace.iterateAllLeaves((leaf) => {
-					if (this.plugin.homeService.isGhostLeaf(leaf)) {
-						const tabHeader = this.getTabHeaderForLeaf(leaf);
-						if (tabHeader && tabHeader.parentElement) {
-							const parent = tabHeader.parentElement;
-							if (parent && parent.classList.contains('workspace-tab-header-container-inner')) {
-								const tabHeaderExtended = tabHeader as TabHeaderElement;
-								// Only remove if not already removed
-								if (parent.contains(tabHeader)) {
-									tabHeaderExtended._homeBaseParent = parent;
-									tabHeaderExtended._homeBaseNextSibling = tabHeader.nextSibling;
-									tabHeader.remove();
+					// Only process leaves in the main workspace (not sidebars)
+					const view = leaf.view;
+					let container: HTMLElement | null = null;
+
+					if (view) {
+						const viewAny = view as unknown as { containerEl?: HTMLElement };
+						container = viewAny.containerEl || null;
+					}
+
+					if (!container) {
+						const leafAny = leaf as unknown as { containerEl?: HTMLElement };
+						container = leafAny.containerEl || null;
+					}
+
+					if (container) {
+						// Check if it's in the main workspace (root, not sidebar)
+						const rootWorkspace = container.closest('.workspace-split.mod-vertical.mod-root');
+						const leftSidebar = container.closest('.workspace-split.mod-left-split');
+						const rightSidebar = container.closest('.workspace-split.mod-right-split');
+
+						// Only process main workspace leaves
+						if (rootWorkspace && !leftSidebar && !rightSidebar) {
+							if (this.plugin.homeService.isGhostLeaf(leaf)) {
+								const tabHeader = this.getTabHeaderForLeaf(leaf);
+								if (tabHeader && tabHeader.parentElement) {
+									const parent = tabHeader.parentElement;
+									if (parent && parent.classList.contains('workspace-tab-header-container-inner')) {
+										const tabHeaderExtended = tabHeader as TabHeaderElement;
+										// Only remove if not already removed
+										if (parent.contains(tabHeader)) {
+											tabHeaderExtended._homeBaseParent = parent;
+											tabHeaderExtended._homeBaseNextSibling = tabHeader.nextSibling;
+											tabHeader.remove();
+										}
+									}
 								}
 							}
 						}
@@ -440,25 +464,49 @@ export class StickyTabService {
 		this.updateWorkspaceClass(false);
 		
 		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
-			const tabHeader = this.getTabHeaderForLeaf(leaf);
-			if (tabHeader) {
-				tabHeader.classList.remove('is-home-base-tab');
-				tabHeader.removeAttribute('data-home-base-ghost');
-				tabHeader.removeAttribute('aria-hidden');
-				
-				const tabHeaderExtended = tabHeader as TabHeaderElement;
-				if (tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader)) {
-					const parent = tabHeaderExtended._homeBaseParent;
-					const nextSibling = tabHeaderExtended._homeBaseNextSibling;
-					if (parent) {
-						if (nextSibling && nextSibling.parentElement === parent) {
-							parent.insertBefore(tabHeader, nextSibling);
-						} else {
-							parent.appendChild(tabHeader);
+			// Only process leaves in the main workspace (not sidebars)
+			const view = leaf.view;
+			let container: HTMLElement | null = null;
+
+			if (view) {
+				const viewAny = view as unknown as { containerEl?: HTMLElement };
+				container = viewAny.containerEl || null;
+			}
+
+			if (!container) {
+				const leafAny = leaf as unknown as { containerEl?: HTMLElement };
+				container = leafAny.containerEl || null;
+			}
+
+			if (container) {
+				// Check if it's in the main workspace (root, not sidebar)
+				const rootWorkspace = container.closest('.workspace-split.mod-vertical.mod-root');
+				const leftSidebar = container.closest('.workspace-split.mod-left-split');
+				const rightSidebar = container.closest('.workspace-split.mod-right-split');
+
+				// Only process main workspace leaves
+				if (rootWorkspace && !leftSidebar && !rightSidebar) {
+					const tabHeader = this.getTabHeaderForLeaf(leaf);
+					if (tabHeader) {
+						tabHeader.classList.remove('is-home-base-tab');
+						tabHeader.removeAttribute('data-home-base-ghost');
+						tabHeader.removeAttribute('aria-hidden');
+
+						const tabHeaderExtended = tabHeader as TabHeaderElement;
+						if (tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader)) {
+							const parent = tabHeaderExtended._homeBaseParent;
+							const nextSibling = tabHeaderExtended._homeBaseNextSibling;
+							if (parent) {
+								if (nextSibling && nextSibling.parentElement === parent) {
+									parent.insertBefore(tabHeader, nextSibling);
+								} else {
+									parent.appendChild(tabHeader);
+								}
+							}
+							delete tabHeaderExtended._homeBaseParent;
+							delete tabHeaderExtended._homeBaseNextSibling;
 						}
 					}
-					delete tabHeaderExtended._homeBaseParent;
-					delete tabHeaderExtended._homeBaseNextSibling;
 				}
 			}
 		});
@@ -652,12 +700,36 @@ export class StickyTabService {
 		// CRITICAL: Remove ghost tab headers SYNCHRONOUSLY before any animation frames
 		// This prevents them from briefly appearing when tabs change
 		const ghostTabHeadersToRemove: Array<{tabHeader: HTMLElement; leaf: WorkspaceLeaf}> = [];
-		
+
 		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
-			if (this.plugin.homeService.isGhostLeaf(leaf)) {
-				const tabHeader = this.getTabHeaderForLeaf(leaf);
-				if (tabHeader && tabHeader.parentElement) {
-					ghostTabHeadersToRemove.push({tabHeader, leaf});
+			// Only process leaves in the main workspace (not sidebars)
+			const view = leaf.view;
+			let container: HTMLElement | null = null;
+
+			if (view) {
+				const viewAny = view as unknown as { containerEl?: HTMLElement };
+				container = viewAny.containerEl || null;
+			}
+
+			if (!container) {
+				const leafAny = leaf as unknown as { containerEl?: HTMLElement };
+				container = leafAny.containerEl || null;
+			}
+
+			if (container) {
+				// Check if it's in the main workspace (root, not sidebar)
+				const rootWorkspace = container.closest('.workspace-split.mod-vertical.mod-root');
+				const leftSidebar = container.closest('.workspace-split.mod-left-split');
+				const rightSidebar = container.closest('.workspace-split.mod-right-split');
+
+				// Only process main workspace leaves
+				if (rootWorkspace && !leftSidebar && !rightSidebar) {
+					if (this.plugin.homeService.isGhostLeaf(leaf)) {
+						const tabHeader = this.getTabHeaderForLeaf(leaf);
+						if (tabHeader && tabHeader.parentElement) {
+							ghostTabHeadersToRemove.push({tabHeader, leaf});
+						}
+					}
 				}
 			}
 		});
@@ -683,39 +755,63 @@ export class StickyTabService {
 
 			// Restore any non-ghost tabs that were incorrectly removed
 			this.plugin.app.workspace.iterateAllLeaves((leaf) => {
-				const isGhostTab = this.plugin.homeService.isGhostLeaf(leaf);
-				const tabHeader = this.getTabHeaderForLeaf(leaf);
-				if (!tabHeader) return;
+				// Only process leaves in the main workspace (not sidebars)
+				const view = leaf.view;
+				let container: HTMLElement | null = null;
 
-					const tabHeaderExtended = tabHeader as TabHeaderElement;
-					const isRemoved = tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader);
-					
-				if (!isGhostTab) {
-					// Not a ghost tab - restore if it was removed
-						if (isRemoved) {
-							const parent = tabHeaderExtended._homeBaseParent;
-							const nextSibling = tabHeaderExtended._homeBaseNextSibling;
-							if (parent) {
-								if (nextSibling && nextSibling.parentElement === parent) {
-									parent.insertBefore(tabHeader, nextSibling);
-								} else {
-									parent.appendChild(tabHeader);
+				if (view) {
+					const viewAny = view as unknown as { containerEl?: HTMLElement };
+					container = viewAny.containerEl || null;
+				}
+
+				if (!container) {
+					const leafAny = leaf as unknown as { containerEl?: HTMLElement };
+					container = leafAny.containerEl || null;
+				}
+
+				if (container) {
+					// Check if it's in the main workspace (root, not sidebar)
+					const rootWorkspace = container.closest('.workspace-split.mod-vertical.mod-root');
+					const leftSidebar = container.closest('.workspace-split.mod-left-split');
+					const rightSidebar = container.closest('.workspace-split.mod-right-split');
+
+					// Only process main workspace leaves
+					if (rootWorkspace && !leftSidebar && !rightSidebar) {
+						const isGhostTab = this.plugin.homeService.isGhostLeaf(leaf);
+						const tabHeader = this.getTabHeaderForLeaf(leaf);
+						if (!tabHeader) return;
+
+						const tabHeaderExtended = tabHeader as TabHeaderElement;
+						const isRemoved = tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader);
+
+						if (!isGhostTab) {
+							// Not a ghost tab - restore if it was removed
+							if (isRemoved) {
+								const parent = tabHeaderExtended._homeBaseParent;
+								const nextSibling = tabHeaderExtended._homeBaseNextSibling;
+								if (parent) {
+									if (nextSibling && nextSibling.parentElement === parent) {
+										parent.insertBefore(tabHeader, nextSibling);
+									} else {
+										parent.appendChild(tabHeader);
+									}
+									delete tabHeaderExtended._homeBaseParent;
+									delete tabHeaderExtended._homeBaseNextSibling;
 								}
-								delete tabHeaderExtended._homeBaseParent;
-								delete tabHeaderExtended._homeBaseNextSibling;
 							}
-						}
 
-					// Check if this is a normal home base tab (not ghost) to apply active state styling if needed
-					// We only do this if we have a path to compare against
-					if (homeBasePath && leafHasFile(leaf, homeBasePath)) {
-						tabHeader.classList.add('is-home-base-tab');
-								} else {
-						tabHeader.classList.remove('is-home-base-tab');
+							// Check if this is a normal home base tab (not ghost) to apply active state styling if needed
+							// We only do this if we have a path to compare against
+							if (homeBasePath && leafHasFile(leaf, homeBasePath)) {
+								tabHeader.classList.add('is-home-base-tab');
+							} else {
+								tabHeader.classList.remove('is-home-base-tab');
+							}
+
+							tabHeader.removeAttribute('data-home-base-ghost');
+							tabHeader.removeAttribute('aria-hidden');
+						}
 					}
-					
-					tabHeader.removeAttribute('data-home-base-ghost');
-					tabHeader.removeAttribute('aria-hidden');
 				}
 			});
 		});

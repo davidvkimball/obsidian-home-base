@@ -10,6 +10,7 @@ import { HomeBaseService } from './services/home-service';
 import { NewTabService } from './services/new-tab-service';
 import { StickyTabService } from './services/sticky-tab-service';
 import { MobileButtonService } from './services/mobile-button-service';
+import { migrateLegacySettings } from './migration';
 
 /**
  * Extended App interface for release notes patching
@@ -24,29 +25,49 @@ interface AppWithReleaseNotes {
  */
 const HOME_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
 
+/**
+ * Timing constants for UI operations
+ * These delays are necessary for Obsidian's internal DOM updates to complete
+ */
+
+/** Delay to ensure DOM is ready after layout-ready event (settings modal detection) */
+const DOM_READY_DELAY = 100;
+
+/** Delay for tab header updates after layout changes to avoid visual flickering */
+const TAB_HEADER_UPDATE_DELAY = 150;
+
+/** Delay for UI updates after file-open to let animations complete */
+const FILE_OPEN_ANIMATION_DELAY = 100;
+
+/** Delay for updates after active-leaf-change to let tab switch animations complete */
+const TAB_SWITCH_ANIMATION_DELAY = 100;
+
+/** Delay after layout-ready before marking startup as complete (allows everything to settle) */
+const STARTUP_COMPLETE_DELAY = 1000;
+
 export default class HomeBasePlugin extends Plugin {
 	settings!: HomeBaseSettings;
-	
+
 	// Services
 	homeService!: HomeBaseService;
 	newTabService!: NewTabService;
 	stickyTabService!: StickyTabService;
 	mobileButtonService!: MobileButtonService;
-	
+
 	// Release notes tracking
 	private newRelease: boolean = false;
-	
+
 	// Track if patched opening behavior already ran
 	private openingBehaviorRan: boolean = false;
-	
+
 	// Track if we're currently in startup (to prevent handleOpenWhenEmpty from firing)
 	private isStartup: boolean = true;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
-		
+
 		// Migrate legacy settings on first load
-		await this.migrateLegacySettings();
+		await migrateLegacySettings(this);
 
 		// Patch opening behavior for fast startup (before other initialization)
 		this.patchOpeningBehavior();
@@ -105,7 +126,7 @@ export default class HomeBasePlugin extends Plugin {
 				// Mark startup as complete after a delay to allow everything to settle
 				setTimeout(() => {
 					this.isStartup = false;
-				}, 1000);
+				}, STARTUP_COMPLETE_DELAY);
 
 				// Update UI features
 				this.updateStickyTabIcon();
@@ -113,7 +134,7 @@ export default class HomeBasePlugin extends Plugin {
 
 				// Update tab headers after layout is ready
 				this.stickyTabService.updateTabHeaders();
-			}, 100); // Small delay to ensure DOM is ready
+			}, DOM_READY_DELAY);
 		});
 
 		// Register layout change handler
@@ -132,7 +153,7 @@ export default class HomeBasePlugin extends Plugin {
 					this.stickyTabService.updateTabHeaders();
 					// Also update icon position in case sidebar state changed
 					this.stickyTabService.updateIconPositionForSidebar();
-				}, 150);
+				}, TAB_HEADER_UPDATE_DELAY);
 			})
 		);
 
@@ -143,7 +164,7 @@ export default class HomeBasePlugin extends Plugin {
 				setTimeout(() => {
 					this.stickyTabService.updateActiveState();
 					this.stickyTabService.updateTabHeaders();
-				}, 100);
+				}, FILE_OPEN_ANIMATION_DELAY);
 			})
 		);
 
@@ -153,7 +174,7 @@ export default class HomeBasePlugin extends Plugin {
 				// Delay to let tab switch animation complete
 				setTimeout(() => {
 					this.stickyTabService.updateTabHeaders();
-				}, 100);
+				}, TAB_SWITCH_ANIMATION_DELAY);
 			})
 		);
 
@@ -162,10 +183,10 @@ export default class HomeBasePlugin extends Plugin {
 	onunload(): void {
 		// Unpatch release notes
 		this.unpatchReleaseNotes();
-		
+
 		// Unpatch opening behavior
 		this.unpatchOpeningBehavior();
-		
+
 		// Clean up services
 		this.stickyTabService.remove();
 		this.mobileButtonService.remove();
@@ -242,55 +263,6 @@ export default class HomeBasePlugin extends Plugin {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
 	}
 
-	/**
-	 * Migrate legacy settings to new format
-	 */
-	async migrateLegacySettings(): Promise<void> {
-		let needsSave = false;
-		const settings = this.settings as unknown as Record<string, string | boolean | HomeBaseType | undefined>;
-		
-		// Migrate homeBasePath to homeBaseType/homeBaseValue
-		if (settings.homeBasePath && !this.settings.homeBaseValue) {
-			this.settings.homeBaseType = HomeBaseType.File;
-			this.settings.homeBaseValue = settings.homeBasePath as string;
-			needsSave = true;
-		}
-		
-		// Migrate keepExistingTabs to openMode
-		if (settings.keepExistingTabs !== undefined) {
-			// Only migrate if openMode is still at default (hasn't been set by user)
-			if (this.settings.openMode === DEFAULT_SETTINGS.openMode) {
-				this.settings.openMode = settings.keepExistingTabs ? 'retain' : 'replace-all';
-				needsSave = true;
-			}
-			// Delete legacy property so it doesn't trigger again
-			delete settings.keepExistingTabs;
-			needsSave = true;
-		}
-		
-		// Migrate mobile homeBasePath
-		if (settings.mobileHomeBasePath && !this.settings.mobileHomeBaseValue) {
-			this.settings.mobileHomeBaseType = HomeBaseType.File;
-			this.settings.mobileHomeBaseValue = settings.mobileHomeBasePath as string;
-			needsSave = true;
-		}
-
-		// Also clean up mobile home base path legacy property
-		if (settings.mobileHomeBasePath !== undefined) {
-			delete settings.mobileHomeBasePath;
-			needsSave = true;
-		}
-
-		// Clean up legacy homeBasePath if it matches homeBaseValue
-		if (settings.homeBasePath !== undefined) {
-			delete settings.homeBasePath;
-			needsSave = true;
-		}
-		
-		if (needsSave) {
-			await this.saveSettings();
-		}
-	}
 
 	/**
 	 * Get the active home base settings (mobile or desktop)
@@ -305,7 +277,7 @@ export default class HomeBasePlugin extends Plugin {
 				value: this.settings.mobileHomeBaseValue || '',
 			};
 		}
-		
+
 		return {
 			type: this.settings.homeBaseType || HomeBaseType.File,
 			value: this.settings.homeBaseValue || '',
@@ -332,7 +304,7 @@ export default class HomeBasePlugin extends Plugin {
 				value: this.settings.mobileNewTabValue || '',
 			};
 		}
-		
+
 		return {
 			type: this.settings.newTabType || HomeBaseType.File,
 			value: this.settings.newTabValue || '',
@@ -376,10 +348,10 @@ export default class HomeBasePlugin extends Plugin {
 		// On actual startup, Obsidian hasn't restored the workspace yet
 		// On plugin reload, files are already open and workspace is restored
 		const hasOpenFiles = this.app.workspace.getLeavesOfType('markdown').length > 0 ||
-		                     this.app.workspace.getLeavesOfType('canvas').length > 0 ||
-		                     this.app.workspace.getLeavesOfType('bases').length > 0 ||
-		                     this.app.workspace.getLeavesOfType('empty').length > 0;
-		
+			this.app.workspace.getLeavesOfType('canvas').length > 0 ||
+			this.app.workspace.getLeavesOfType('bases').length > 0 ||
+			this.app.workspace.getLeavesOfType('empty').length > 0;
+
 		// If files are open, this is likely a plugin reload, not actual startup
 		return hasOpenFiles;
 	}
@@ -391,21 +363,21 @@ export default class HomeBasePlugin extends Plugin {
 		// Check for settings modal by looking for the modal container
 		// Try multiple selectors to be more robust
 		const settingsModal = document.querySelector('.modal-container.mod-settings') ||
-		                      document.querySelector('.modal.mod-settings') ||
-		                      document.querySelector('.vertical-tab-content');
-		
+			document.querySelector('.modal.mod-settings') ||
+			document.querySelector('.vertical-tab-content');
+
 		// Also check if any modal is open and contains settings content
 		if (!settingsModal) {
 			const allModals = document.querySelectorAll('.modal-container');
 			for (const modal of Array.from(allModals)) {
-				if (modal.querySelector('.vertical-tab-content') || 
-				    modal.querySelector('.settings-content') ||
-				    modal.classList.contains('mod-settings')) {
+				if (modal.querySelector('.vertical-tab-content') ||
+					modal.querySelector('.settings-content') ||
+					modal.classList.contains('mod-settings')) {
 					return true;
 				}
 			}
 		}
-		
+
 		return settingsModal !== null;
 	}
 
@@ -413,57 +385,57 @@ export default class HomeBasePlugin extends Plugin {
 	 * Patch runOpeningBehavior for fast startup (like homepage plugin)
 	 */
 	private patchOpeningBehavior(): void {
-		// Store original method
-		 
-		this.app.nvOrig_runOpeningBehavior = this.app.runOpeningBehavior;
-		
-		// Patch the method
-		 
-		this.app.runOpeningBehavior = async (path: string) => {
-		const openInitially = (
-			this.settings.openOnStartup && 
-			!this.hasUrlParams()
-		);
-			
-			if (openInitially) {
-				// Mark that we've run opening behavior
-				this.openingBehaviorRan = true;
-				
-				// Use fast startup - detach all leaves and open home base
-				const mode = this.settings.openMode;
-				if (mode === 'replace-all') {
-					await this.homeService.detachAllLeaves();
-				}
-				
-				// Use ghost tab if sticky icon is enabled, otherwise use normal open
-				if (this.settings.showStickyHomeIcon) {
-					void this.homeService.openHomeBaseInGhostTab({
-						runCommand: true,
-					});
+		try {
+			// Store original method
+			this.app.nvOrig_runOpeningBehavior = this.app.runOpeningBehavior;
+
+			// Patch the method
+			this.app.runOpeningBehavior = async (path: string) => {
+				const openInitially = (
+					this.settings.openOnStartup &&
+					!this.hasUrlParams()
+				);
+
+				if (openInitially) {
+					// Mark that we've run opening behavior
+					this.openingBehaviorRan = true;
+
+					// Use fast startup - detach all leaves and open home base
+					const mode = this.settings.openMode;
+					if (mode === 'replace-all') {
+						await this.homeService.detachAllLeaves();
+					}
+
+					// Use ghost tab if sticky icon is enabled, otherwise use normal open
+					if (this.settings.showStickyHomeIcon) {
+						void this.homeService.openHomeBaseInGhostTab({
+							runCommand: true,
+						});
+					} else {
+						void this.homeService.openHomeBaseWithMode(mode, true);
+					}
 				} else {
-					void this.homeService.openHomeBaseWithMode(mode, true);
+					// Call original behavior
+					if (this.app.nvOrig_runOpeningBehavior) {
+						await this.app.nvOrig_runOpeningBehavior(path);
+					}
 				}
-			} else {
-				// Call original behavior
-				 
-				if (this.app.nvOrig_runOpeningBehavior) {
-					 
-					await this.app.nvOrig_runOpeningBehavior(path);
-				}
-			}
-			
-			// Unpatch release notes after opening behavior completes
-			this.unpatchReleaseNotes();
-		};
+
+				// Unpatch release notes after opening behavior completes
+				this.unpatchReleaseNotes();
+			};
+		} catch (e) {
+			console.warn('[Home Base] Failed to patch opening behavior:', e);
+		}
 	}
 
 	/**
 	 * Unpatch runOpeningBehavior
 	 */
 	private unpatchOpeningBehavior(): void {
-		 
+
 		if (this.app.nvOrig_runOpeningBehavior) {
-			 
+
 			this.app.runOpeningBehavior = this.app.nvOrig_runOpeningBehavior;
 		}
 	}
@@ -472,13 +444,15 @@ export default class HomeBasePlugin extends Plugin {
 	 * Patch showReleaseNotes to track new releases
 	 */
 	private patchReleaseNotes(): void {
-		const appAny = this.app as unknown as AppWithReleaseNotes;
-		 
-		appAny.nvOrig_showReleaseNotes = appAny.showReleaseNotes;
-		 
-		appAny.showReleaseNotes = () => {
-			this.newRelease = true;
-		};
+		try {
+			const appAny = this.app as unknown as AppWithReleaseNotes;
+			appAny.nvOrig_showReleaseNotes = appAny.showReleaseNotes;
+			appAny.showReleaseNotes = () => {
+				this.newRelease = true;
+			};
+		} catch (e) {
+			console.warn('[Home Base] Failed to patch release notes:', e);
+		}
 	}
 
 	/**
@@ -486,15 +460,15 @@ export default class HomeBasePlugin extends Plugin {
 	 */
 	private unpatchReleaseNotes(): void {
 		const appAny = this.app as unknown as AppWithReleaseNotes;
-		 
+
 		if (this.newRelease && !this.settings.hideReleaseNotes) {
-			 
+
 			appAny.nvOrig_showReleaseNotes?.();
 		}
-		
-		 
+
+
 		if (appAny.nvOrig_showReleaseNotes) {
-			 
+
 			appAny.showReleaseNotes = appAny.nvOrig_showReleaseNotes;
 		}
 	}
@@ -505,13 +479,13 @@ export default class HomeBasePlugin extends Plugin {
 	hasRequiredPlugin(type: HomeBaseType): boolean {
 		switch (type) {
 			case HomeBaseType.Workspace:
-				 
+
 				return this.app.internalPlugins?.plugins?.workspaces?.enabled === true;
 			case HomeBaseType.Graph:
-				 
+
 				return this.app.internalPlugins?.plugins?.graph?.enabled === true;
 			case HomeBaseType.Journal:
-				 
+
 				return !!this.app.plugins?.plugins?.['journals'];
 			case HomeBaseType.DailyNote:
 			case HomeBaseType.WeeklyNote:
@@ -539,7 +513,7 @@ export default class HomeBasePlugin extends Plugin {
 			if (periodicNotes) {
 				const version = (periodicNotes as { manifest?: { version?: string } })?.manifest?.version || '0';
 				const isLegacy = version.startsWith('0');
-			 
+
 				if (isLegacy) {
 					return (periodicNotes as { settings?: Record<string, { enabled?: boolean }> })?.settings?.['daily']?.enabled === true;
 				} else {
@@ -549,16 +523,16 @@ export default class HomeBasePlugin extends Plugin {
 			}
 			return false;
 		}
-		
-		 
+
+
 		const periodicNotes = this.app.plugins?.plugins?.['periodic-notes'];
 		if (!periodicNotes) return false;
-		
+
 		// Check if periodic notes plugin has the required period enabled
-		 
+
 		const version = (periodicNotes as { manifest?: { version?: string } })?.manifest?.version || '0';
 		const isLegacy = version.startsWith('0');
-		
+
 		if (isLegacy) {
 			// Legacy periodic notes
 			const periodMap: Partial<Record<HomeBaseType, string>> = {
@@ -567,10 +541,10 @@ export default class HomeBasePlugin extends Plugin {
 				[HomeBaseType.QuarterlyNote]: 'quarterly',
 				[HomeBaseType.YearlyNote]: 'yearly',
 			};
-			 
+
 			const adjective = periodMap[type];
 			if (!adjective) return false;
-			 
+
 			return (periodicNotes as { settings?: Record<string, { enabled?: boolean }> })?.settings?.[adjective]?.enabled === true;
 		} else {
 			// New periodic notes
@@ -580,12 +554,12 @@ export default class HomeBasePlugin extends Plugin {
 				[HomeBaseType.QuarterlyNote]: 'quarter',
 				[HomeBaseType.YearlyNote]: 'year',
 			};
-			 
+
 			const noun = nounMap[type];
 			if (!noun) return false;
-			 
+
 			const calendarSet = (periodicNotes as { calendarSetManager?: { getActiveSet?: () => Record<string, { enabled?: boolean }> } })?.calendarSetManager?.getActiveSet?.();
-			 
+
 			return calendarSet?.[noun]?.enabled === true;
 		}
 	}

@@ -1,9 +1,10 @@
 # vscode
 .vscode 
 
-# Intellij
-*.iml
-.idea
+# Lock files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
 
 # npm
 node_modules

@@ -4,11 +4,11 @@
 
 import { App, PluginSettingTab, requireApiVersion } from 'obsidian';
 import type HomeBasePlugin from '../main';
-import { 
-	VIEW_MODE_OPTIONS, 
-	NEW_TAB_MODE_OPTIONS, 
+import {
+	VIEW_MODE_OPTIONS,
+	NEW_TAB_MODE_OPTIONS,
 	OPENING_MODE_OPTIONS,
-	ViewMode, 
+	ViewMode,
 	NewTabMode,
 	OpeningMode,
 	HomeBaseType,
@@ -21,6 +21,7 @@ import { IconPicker } from './icon-picker';
 
 export class HomeBaseSettingTab extends PluginSettingTab {
 	plugin: HomeBasePlugin;
+	public icon = 'lucide-house';
 
 	constructor(app: App, plugin: HomeBasePlugin) {
 		super(app, plugin);
@@ -46,7 +47,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 				.setDesc('What to open as your home base')
 				.addDropdown((dropdown) => {
 					let pluginDisabled = false;
-					
+
 					for (const type of Object.values(HomeBaseType)) {
 						if (!this.plugin.hasRequiredPlugin(type)) {
 							// If current type is disabled, mark it but still allow it
@@ -55,9 +56,9 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 								dropdown.addOption(type, type);
 							} else {
 								// Add disabled option
-								dropdown.selectEl.createEl('option', { 
-									text: type, 
-									attr: { disabled: 'true' } 
+								dropdown.selectEl.createEl('option', {
+									text: type,
+									attr: { disabled: 'true' }
 								});
 								continue;
 							}
@@ -65,7 +66,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							dropdown.addOption(type, type);
 						}
 					}
-					
+
 					dropdown
 						.setValue(activeType || HomeBaseType.File)
 						.onChange(async (value) => {
@@ -75,11 +76,11 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 								this.plugin.settings.homeBaseType = value as HomeBaseType;
 							}
 							await this.plugin.saveSettings();
-							
+
 							// Re-render to show/hide value input
-							const scrollContainer = containerEl.closest('.vertical-tab-content') || 
-													containerEl.closest('.settings-content') || 
-													containerEl.parentElement;
+							const scrollContainer = containerEl.closest('.vertical-tab-content') ||
+								containerEl.closest('.settings-content') ||
+								containerEl.parentElement;
 							const scrollTop = scrollContainer?.scrollTop || 0;
 							this.display();
 							requestAnimationFrame(() => {
@@ -88,7 +89,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 								}
 							});
 						});
-					
+
 					// Show warning if current type requires a disabled plugin
 					if (pluginDisabled) {
 						setting.descEl.createDiv({
@@ -120,10 +121,10 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 				}
 
 				setting
-					.setName(activeType === HomeBaseType.File ? 'File' : 
-							activeType === HomeBaseType.Workspace ? 'Workspace' :
+					.setName(activeType === HomeBaseType.File ? 'File' :
+						activeType === HomeBaseType.Workspace ? 'Workspace' :
 							(activeType === HomeBaseType.RandomFolder || activeType === HomeBaseType.NewNote) ? 'Folder' :
-							activeType === HomeBaseType.Journal ? 'Journal' : 'Value')
+								activeType === HomeBaseType.Journal ? 'Journal' : 'Value')
 					.setDesc(desc)
 					.addText((text) => {
 						// Add appropriate suggester
@@ -134,7 +135,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						} else if (activeType === HomeBaseType.RandomFolder || activeType === HomeBaseType.NewNote) {
 							new FolderSuggest(this.app, text.inputEl);
 						}
-						
+
 						text
 							.setPlaceholder(placeholder)
 							.setValue(activeValue || '')
@@ -298,15 +299,15 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						.onChange(async (value) => {
 							this.plugin.settings.replaceNewTab = value;
 							await this.plugin.saveSettings();
-							
+
 							// Preserve scroll position before re-rendering
-							const scrollContainer = containerEl.closest('.vertical-tab-content') || 
-													containerEl.closest('.settings-content') || 
-													containerEl.parentElement;
+							const scrollContainer = containerEl.closest('.vertical-tab-content') ||
+								containerEl.closest('.settings-content') ||
+								containerEl.parentElement;
 							const scrollTop = scrollContainer?.scrollTop || 0;
-							
+
 							this.display(); // Re-render to show/hide dependent setting
-							
+
 							// Restore scroll position after rendering
 							requestAnimationFrame(() => {
 								if (scrollContainer) {
@@ -347,15 +348,15 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							.onChange(async (value) => {
 								this.plugin.settings.useDifferentFileForNewTab = value;
 								await this.plugin.saveSettings();
-								
+
 								// Preserve scroll position before re-rendering
-								const scrollContainer = containerEl.closest('.vertical-tab-content') || 
-														containerEl.closest('.settings-content') || 
-														containerEl.parentElement;
+								const scrollContainer = containerEl.closest('.vertical-tab-content') ||
+									containerEl.closest('.settings-content') ||
+									containerEl.parentElement;
 								const scrollTop = scrollContainer?.scrollTop || 0;
-								
+
 								this.display(); // Re-render to show/hide dependent settings
-								
+
 								// Restore scroll position after rendering
 								requestAnimationFrame(() => {
 									if (scrollContainer) {
@@ -378,7 +379,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						.setDesc('What to open for new tabs')
 						.addDropdown((dropdown) => {
 							let pluginDisabled = false;
-							
+
 							for (const type of Object.values(HomeBaseType)) {
 								if (!this.plugin.hasRequiredPlugin(type)) {
 									// If current type is disabled, mark it but still allow it
@@ -387,9 +388,9 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 										dropdown.addOption(type, type);
 									} else {
 										// Add disabled option
-										dropdown.selectEl.createEl('option', { 
-											text: type, 
-											attr: { disabled: 'true' } 
+										dropdown.selectEl.createEl('option', {
+											text: type,
+											attr: { disabled: 'true' }
 										});
 										continue;
 									}
@@ -397,17 +398,17 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 									dropdown.addOption(type, type);
 								}
 							}
-							
+
 							dropdown
 								.setValue(desktopType)
 								.onChange(async (value) => {
 									this.plugin.settings.newTabType = value as HomeBaseType;
 									await this.plugin.saveSettings();
-									
+
 									// Re-render to show/hide value input
-									const scrollContainer = containerEl.closest('.vertical-tab-content') || 
-															containerEl.closest('.settings-content') || 
-															containerEl.parentElement;
+									const scrollContainer = containerEl.closest('.vertical-tab-content') ||
+										containerEl.closest('.settings-content') ||
+										containerEl.parentElement;
 									const scrollTop = scrollContainer?.scrollTop || 0;
 									this.display();
 									requestAnimationFrame(() => {
@@ -416,7 +417,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 										}
 									});
 								});
-							
+
 							// Show warning if current type requires a disabled plugin
 							if (pluginDisabled) {
 								setting.descEl.createDiv({
@@ -448,10 +449,10 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						}
 
 						setting
-							.setName(desktopType === HomeBaseType.File ? 'New tab file' : 
-									desktopType === HomeBaseType.Workspace ? 'New tab workspace' :
+							.setName(desktopType === HomeBaseType.File ? 'New tab file' :
+								desktopType === HomeBaseType.Workspace ? 'New tab workspace' :
 									desktopType === HomeBaseType.RandomFolder ? 'New tab folder' :
-									desktopType === HomeBaseType.Journal ? 'New tab journal' : 'New tab value')
+										desktopType === HomeBaseType.Journal ? 'New tab journal' : 'New tab value')
 							.setDesc(desc)
 							.addText((text) => {
 								// Add appropriate suggester
@@ -462,7 +463,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 								} else if (desktopType === HomeBaseType.RandomFolder) {
 									new FolderSuggest(this.app, text.inputEl);
 								}
-								
+
 								text
 									.setPlaceholder(placeholder)
 									.setValue(desktopValue || '')
@@ -493,15 +494,15 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							this.plugin.settings.showStickyHomeIcon = value;
 							await this.plugin.saveSettings();
 							this.plugin.updateStickyTabIcon();
-							
+
 							// Preserve scroll position before re-rendering
-							const scrollContainer = containerEl.closest('.vertical-tab-content') || 
-													containerEl.closest('.settings-content') || 
-													containerEl.parentElement;
+							const scrollContainer = containerEl.closest('.vertical-tab-content') ||
+								containerEl.closest('.settings-content') ||
+								containerEl.parentElement;
 							const scrollTop = scrollContainer?.scrollTop || 0;
-							
+
 							this.display(); // Re-render to show/hide dependent setting
-							
+
 							// Restore scroll position after rendering
 							requestAnimationFrame(() => {
 								if (scrollContainer) {
@@ -564,20 +565,20 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		const mobileGroup = createSettingsGroup(containerEl, 'Mobile', 'home-base');
 
 		mobileGroup.addSetting((setting) => {
-				setting
-					.setName('Separate mobile home base')
-					.setDesc('Use a different home base on mobile devices')
+			setting
+				.setName('Separate mobile home base')
+				.setDesc('Use a different home base on mobile devices')
 				.addToggle((toggle) => {
 					toggle
 						.setValue(this.plugin.settings.separateMobile)
 						.onChange(async (value) => {
 							this.plugin.settings.separateMobile = value;
 							await this.plugin.saveSettings();
-							
+
 							// Re-render to show mobile settings
-							const scrollContainer = containerEl.closest('.vertical-tab-content') || 
-													containerEl.closest('.settings-content') || 
-													containerEl.parentElement;
+							const scrollContainer = containerEl.closest('.vertical-tab-content') ||
+								containerEl.closest('.settings-content') ||
+								containerEl.parentElement;
 							const scrollTop = scrollContainer?.scrollTop || 0;
 							this.display();
 							requestAnimationFrame(() => {
@@ -598,7 +599,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 					.addDropdown((dropdown) => {
 						const mobileType = this.plugin.settings.mobileHomeBaseType || HomeBaseType.File;
 						let pluginDisabled = false;
-						
+
 						for (const type of Object.values(HomeBaseType)) {
 							if (!this.plugin.hasRequiredPlugin(type)) {
 								// If current type is disabled, mark it but still allow it
@@ -607,9 +608,9 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 									dropdown.addOption(type, type);
 								} else {
 									// Add disabled option
-									dropdown.selectEl.createEl('option', { 
-										text: type, 
-										attr: { disabled: 'true' } 
+									dropdown.selectEl.createEl('option', {
+										text: type,
+										attr: { disabled: 'true' }
 									});
 									continue;
 								}
@@ -617,16 +618,16 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 								dropdown.addOption(type, type);
 							}
 						}
-						
+
 						dropdown
 							.setValue(mobileType)
 							.onChange(async (value) => {
 								this.plugin.settings.mobileHomeBaseType = value as HomeBaseType;
 								await this.plugin.saveSettings();
-								
-								const scrollContainer = containerEl.closest('.vertical-tab-content') || 
-														containerEl.closest('.settings-content') || 
-														containerEl.parentElement;
+
+								const scrollContainer = containerEl.closest('.vertical-tab-content') ||
+									containerEl.closest('.settings-content') ||
+									containerEl.parentElement;
 								const scrollTop = scrollContainer?.scrollTop || 0;
 								this.display();
 								requestAnimationFrame(() => {
@@ -635,7 +636,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 									}
 								});
 							});
-						
+
 						// Show warning if current type requires a disabled plugin
 						if (pluginDisabled) {
 							setting.descEl.createDiv({
@@ -667,10 +668,10 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 					}
 
 					setting
-						.setName(mobileType === HomeBaseType.File ? 'Mobile file' : 
-								mobileType === HomeBaseType.Workspace ? 'Mobile workspace' :
+						.setName(mobileType === HomeBaseType.File ? 'Mobile file' :
+							mobileType === HomeBaseType.Workspace ? 'Mobile workspace' :
 								mobileType === HomeBaseType.RandomFolder ? 'Mobile folder' :
-								mobileType === HomeBaseType.Journal ? 'Mobile journal' : 'Mobile value')
+									mobileType === HomeBaseType.Journal ? 'Mobile journal' : 'Mobile value')
 						.setDesc(desc)
 						.addText((text) => {
 							if (mobileType === HomeBaseType.File) {
@@ -680,7 +681,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							} else if (mobileType === HomeBaseType.RandomFolder) {
 								new FolderSuggest(this.app, text.inputEl);
 							}
-							
+
 							text
 								.setPlaceholder(placeholder)
 								.setValue(this.plugin.settings.mobileHomeBaseValue || '')
@@ -722,11 +723,11 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							.onChange(async (value) => {
 								this.plugin.settings.newTabSeparateMobile = value;
 								await this.plugin.saveSettings();
-								
+
 								// Re-render to show mobile settings
-								const scrollContainer = containerEl.closest('.vertical-tab-content') || 
-														containerEl.closest('.settings-content') || 
-														containerEl.parentElement;
+								const scrollContainer = containerEl.closest('.vertical-tab-content') ||
+									containerEl.closest('.settings-content') ||
+									containerEl.parentElement;
 								const scrollTop = scrollContainer?.scrollTop || 0;
 								this.display();
 								requestAnimationFrame(() => {
@@ -750,7 +751,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						.setDesc('What to open for new tabs on mobile')
 						.addDropdown((dropdown) => {
 							let pluginDisabled = false;
-							
+
 							for (const type of Object.values(HomeBaseType)) {
 								if (!this.plugin.hasRequiredPlugin(type)) {
 									// If current type is disabled, mark it but still allow it
@@ -759,9 +760,9 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 										dropdown.addOption(type, type);
 									} else {
 										// Add disabled option
-										dropdown.selectEl.createEl('option', { 
-											text: type, 
-											attr: { disabled: 'true' } 
+										dropdown.selectEl.createEl('option', {
+											text: type,
+											attr: { disabled: 'true' }
 										});
 										continue;
 									}
@@ -769,16 +770,16 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 									dropdown.addOption(type, type);
 								}
 							}
-							
+
 							dropdown
 								.setValue(mobileType)
 								.onChange(async (value) => {
 									this.plugin.settings.mobileNewTabType = value as HomeBaseType;
 									await this.plugin.saveSettings();
-									
-									const scrollContainer = containerEl.closest('.vertical-tab-content') || 
-															containerEl.closest('.settings-content') || 
-															containerEl.parentElement;
+
+									const scrollContainer = containerEl.closest('.vertical-tab-content') ||
+										containerEl.closest('.settings-content') ||
+										containerEl.parentElement;
 									const scrollTop = scrollContainer?.scrollTop || 0;
 									this.display();
 									requestAnimationFrame(() => {
@@ -787,7 +788,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 										}
 									});
 								});
-							
+
 							// Show warning if current type requires a disabled plugin
 							if (pluginDisabled) {
 								setting.descEl.createDiv({
@@ -819,10 +820,10 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						}
 
 						setting
-							.setName(mobileType === HomeBaseType.File ? 'Mobile new tab file' : 
-									mobileType === HomeBaseType.Workspace ? 'Mobile new tab workspace' :
+							.setName(mobileType === HomeBaseType.File ? 'Mobile new tab file' :
+								mobileType === HomeBaseType.Workspace ? 'Mobile new tab workspace' :
 									mobileType === HomeBaseType.RandomFolder ? 'Mobile new tab folder' :
-									mobileType === HomeBaseType.Journal ? 'Mobile new tab journal' : 'Mobile new tab value')
+										mobileType === HomeBaseType.Journal ? 'Mobile new tab journal' : 'Mobile new tab value')
 							.setDesc(desc)
 							.addText((text) => {
 								if (mobileType === HomeBaseType.File) {
@@ -832,7 +833,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 								} else if (mobileType === HomeBaseType.RandomFolder) {
 									new FolderSuggest(this.app, text.inputEl);
 								}
-								
+
 								text
 									.setPlaceholder(placeholder)
 									.setValue(mobileValue || '')
@@ -860,7 +861,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 				.addText((text) => {
 					// Add command suggester
 					new CommandSuggest(this.app, text.inputEl);
-					
+
 					text
 						.setPlaceholder('Search for a command...')
 						.setValue(displayValue || '')
@@ -876,15 +877,15 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						.onClick(async () => {
 							this.plugin.settings.commandOnOpen = '';
 							await this.plugin.saveSettings();
-							
+
 							// Preserve scroll position before re-rendering
-							const scrollContainer = containerEl.closest('.vertical-tab-content') || 
-													containerEl.closest('.settings-content') || 
-													containerEl.parentElement;
+							const scrollContainer = containerEl.closest('.vertical-tab-content') ||
+								containerEl.closest('.settings-content') ||
+								containerEl.parentElement;
 							const scrollTop = scrollContainer?.scrollTop || 0;
-							
+
 							this.display();
-							
+
 							// Restore scroll position after rendering
 							requestAnimationFrame(() => {
 								if (scrollContainer) {

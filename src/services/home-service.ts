@@ -6,7 +6,7 @@
 import { App, TFile, WorkspaceLeaf, MarkdownView, Platform, View as OView } from 'obsidian';
 import type HomeBasePlugin from '../main';
 import { HomeBaseType, OpeningMode } from '../settings';
-import { getFileByPath, isMarkdownLike, leafHasFile, isSupportedExtension, pathsEqual } from '../utils/file-utils';
+import { getFileByPath, isMarkdownLike, leafHasFile, isSupportedExtension } from '../utils/file-utils';
 import { executeCommand } from '../ui/command-suggest';
 import { computeHomeBasePath, trimFile, resolvePathSync } from '../utils/homebase-resolver';
 
@@ -14,6 +14,20 @@ import { computeHomeBasePath, trimFile, resolvePathSync } from '../utils/homebas
  * View types that can be home base files
  */
 const LEAF_TYPES = ['markdown', 'canvas', 'bases', 'kanban'];
+
+/**
+ * Timing constants for home service operations
+ * These delays ensure Obsidian's internal state is updated before proceeding
+ */
+
+/** Short delay for leaf detachment to complete */
+const DETACH_DELAY = 100;
+
+/** Delay for graph view initialization */
+const GRAPH_INIT_DELAY = 200;
+
+/** Fallback delay when using graph command instead of direct creation */
+const GRAPH_COMMAND_FALLBACK_DELAY = 300;
 
 /**
  * Helper to check if two file paths are equal (case-insensitive, ignoring extension)
@@ -38,13 +52,16 @@ export class HomeBaseService {
 	 */
 	async openHomeBaseWithMode(mode: OpeningMode, runCommand: boolean = true): Promise<boolean> {
 		const homeBaseSettings = this.plugin.getHomeBaseSettings();
-		
+
 		// Handle non-file types (Workspace, Graph, None)
 		if (homeBaseSettings.type === HomeBaseType.Workspace) {
 			return this.openWorkspace(homeBaseSettings.value);
 		}
 		if (homeBaseSettings.type === HomeBaseType.Graph) {
-			// Graph view: just open it (no ghost tab support due to unreliable detection)
+			// Graph view: support ghost tab if sticky icon is enabled
+			if (this.plugin.settings.showStickyHomeIcon) {
+				return this.openHomeBaseInGhostTab({ runCommand });
+			}
 			return this.openGraph();
 		}
 		if (homeBaseSettings.type === HomeBaseType.None) {
@@ -61,31 +78,31 @@ export class HomeBaseService {
 			homeBaseSettings.value,
 			this.plugin
 		);
-		
+
 		if (!resolvedPath) {
 			return false;
 		}
 
 		// Get the file - use metadataCache for better path resolution (like homepage plugin)
 		let file = this.app.metadataCache.getFirstLinkpathDest(resolvedPath, '/');
-		
+
 		// If not found and auto-create is not supported for this type, return
 		// For now, we'll try getFileByPath as fallback
 		if (!file) {
 			file = getFileByPath(this.app, resolvedPath);
 		}
-		
+
 		if (!file) {
 			// Try to create if it's a markdown file and path doesn't have extension
 			const untrimmedPath = resolvedPath.endsWith('.md') ? resolvedPath : `${resolvedPath}.md`;
 			file = getFileByPath(this.app, untrimmedPath);
-			
+
 			if (!file && homeBaseSettings.type === HomeBaseType.File) {
 				// Could create file here if autoCreate setting exists, but for now just return
 				return false;
 			}
 		}
-		
+
 		if (!file) {
 			return false;
 		}
@@ -102,7 +119,7 @@ export class HomeBaseService {
 				if (viewState.pinned !== true) {
 					void activeLeaf.detach();
 					// Wait a bit for detachment
-					await new Promise(resolve => setTimeout(resolve, 100));
+					await new Promise(resolve => setTimeout(resolve, DETACH_DELAY));
 				}
 			}
 		}
@@ -125,10 +142,10 @@ export class HomeBaseService {
 		}
 
 		// Open in new leaf
-		const newLeaf = mode === 'retain' 
+		const newLeaf = mode === 'retain'
 			? this.app.workspace.getLeaf('tab')
 			: this.app.workspace.getLeaf(false);
-		
+
 		if (!newLeaf) {
 			return false;
 		}
@@ -147,15 +164,15 @@ export class HomeBaseService {
 	 * Open workspace
 	 */
 	private async openWorkspace(workspaceName: string): Promise<boolean> {
-		 
+
 		const workspacePlugin = this.app.internalPlugins?.plugins?.workspaces;
-		 
+
 		if (!workspacePlugin?.enabled || !workspacePlugin.instance?.loadWorkspace) {
 			return false;
 		}
-		 
+
 		workspacePlugin.instance.loadWorkspace(workspaceName);
-		await new Promise(resolve => setTimeout(resolve, 100));
+		await new Promise(resolve => setTimeout(resolve, DETACH_DELAY));
 		return true;
 	}
 
@@ -163,218 +180,12 @@ export class HomeBaseService {
 	 * Open graph view
 	 */
 	async openGraph(): Promise<boolean> {
-		 
+
 		await this.app.commands?.executeCommandById?.('graph:open');
 		return true;
 	}
 
-	/**
-	 * Open graph view in ghost tab
-	 * DEPRECATED: Graph view ghost tab detection is unreliable, so this is no longer used
-	 * Graph views now just open normally like random files
-	 */
-	private async openGraphInGhostTab(runCommand: boolean): Promise<boolean> {
-		// Check if settings modal is open
-		if (this.isSettingsModalOpen()) {
-			return false;
-		}
-
-		// Check if ghost tab already exists (pinned graph view)
-		// Use the same approach as file-based tabs: find it each time
-		// Try getLeavesOfType first, then iterateAllLeaves as fallback
-		let graphLeaves = this.app.workspace.getLeavesOfType('graph');
-		
-		// If getLeavesOfType doesn't work (returns 0), use iterateAllLeaves
-		if (graphLeaves.length === 0) {
-			graphLeaves = [];
-			this.app.workspace.iterateAllLeaves((leaf) => {
-				try {
-					const viewState = leaf.getViewState();
-					if (viewState.type === 'graph') {
-						graphLeaves.push(leaf);
-					}
-				} catch {
-					// Leaf might be detached, skip it
-				}
-			});
-		}
-		
-		
-		// If there's exactly one graph view, use it as the ghost tab
-		// (since we should only have one ghost tab at a time)
-		let ghostTab: WorkspaceLeaf | null = null;
-		
-		if (graphLeaves.length === 1) {
-			// Only one graph view exists - this is our ghost tab
-			ghostTab = graphLeaves[0] || null;
-		} else if (graphLeaves.length > 1) {
-			// Multiple graph views - find the pinned one
-			for (const leaf of graphLeaves) {
-				if (!leaf) continue;
-				try {
-					const viewState = leaf.getViewState();
-					if (viewState.pinned === true) {
-						ghostTab = leaf;
-						break;
-					}
-				} catch {
-					// Leaf might be detached, skip it
-					continue;
-				}
-			}
-			
-			// If no pinned one found, use the first one (shouldn't happen, but fallback)
-			if (!ghostTab && graphLeaves[0]) {
-				ghostTab = graphLeaves[0] || null;
-			}
-		}
-		
-		if (ghostTab) {
-			// Ghost tab exists - close ALL other graph views (pinned or not), then focus ghost tab
-			// Find all graph leaves again to get the current list
-			const allGraphLeavesForCleanup: WorkspaceLeaf[] = [];
-			this.app.workspace.iterateAllLeaves((leaf) => {
-				const viewState = leaf.getViewState();
-				if (viewState.type === 'graph') {
-					allGraphLeavesForCleanup.push(leaf);
-				}
-			});
-			const otherGraphLeaves = allGraphLeavesForCleanup.filter(leaf => leaf !== ghostTab);
-			
-			for (const leaf of otherGraphLeaves) {
-				void leaf.detach();
-			}
-			
-			// Wait for detachments to complete
-			await new Promise(resolve => setTimeout(resolve, 150));
-			
-			// Double-check - make sure no other graph views exist
-			// Use iterateAllLeaves instead of getLeavesOfType for graph views
-			const remainingGraphLeaves: WorkspaceLeaf[] = [];
-			this.app.workspace.iterateAllLeaves((leaf) => {
-				const viewState = leaf.getViewState();
-				if (viewState.type === 'graph') {
-					remainingGraphLeaves.push(leaf);
-				}
-			});
-			if (remainingGraphLeaves.length > 1) {
-				// Still have duplicates, close all except ghost tab
-				for (const leaf of remainingGraphLeaves) {
-					if (leaf !== ghostTab) {
-						void leaf.detach();
-					}
-				}
-				await new Promise(resolve => setTimeout(resolve, 100));
-			}
-			
-			const shouldFocus = !this.isSettingsModalOpen();
-			this.app.workspace.setActiveLeaf(ghostTab, { focus: shouldFocus });
-			
-			if (runCommand) {
-				this.runCommandOnOpen();
-			}
-			return true;
-		}
-
-		// No ghost tab exists - close ALL existing graph views first
-		// Find all graph leaves
-		const allExistingGraphLeaves: WorkspaceLeaf[] = [];
-		this.app.workspace.iterateAllLeaves((leaf) => {
-			const viewState = leaf.getViewState();
-			if (viewState.type === 'graph') {
-				allExistingGraphLeaves.push(leaf);
-			}
-		});
-		for (const leaf of allExistingGraphLeaves) {
-			void leaf.detach();
-		}
-		
-		// Wait for detachments to complete
-		await new Promise(resolve => setTimeout(resolve, 100));
-
-		// Check if there's already a graph view (might have been opened by another action)
-		// Use iterateAllLeaves instead of getLeavesOfType for graph views (getLeavesOfType doesn't work for graph)
-		let existingGraphLeaves: WorkspaceLeaf[] = [];
-		this.app.workspace.iterateAllLeaves((leaf) => {
-			const viewState = leaf.getViewState();
-			if (viewState.type === 'graph') {
-				existingGraphLeaves.push(leaf);
-			}
-		});
-		
-		let newGhostTab: WorkspaceLeaf | null = null;
-		
-		if (existingGraphLeaves.length > 0) {
-			// Use the first existing graph view
-			newGhostTab = existingGraphLeaves[0] || null;
-		} else {
-			// No existing graph view, open a new one
-			
-			// Open graph view in a new leaf directly instead of using the command
-			// The command might close existing views
-			const newLeaf = this.app.workspace.getLeaf('tab');
-			if (newLeaf) {
-				await newLeaf.setViewState({
-					type: 'graph',
-					state: {},
-				});
-				
-				// Wait for graph to initialize
-				await new Promise(resolve => setTimeout(resolve, 200));
-				
-				newGhostTab = newLeaf;
-			} else {
-				// Fallback to command if we can't create leaf
-				await this.openGraph();
-				await new Promise(resolve => setTimeout(resolve, 300));
-				
-				existingGraphLeaves = [];
-				this.app.workspace.iterateAllLeaves((leaf) => {
-					const viewState = leaf.getViewState();
-					if (viewState.type === 'graph') {
-						existingGraphLeaves.push(leaf);
-					}
-				});
-				
-				if (existingGraphLeaves.length > 0) {
-					newGhostTab = existingGraphLeaves[0] || null;
-				}
-			}
-		}
-		
-		if (newGhostTab) {
-			newGhostTab.setPinned(true);
-			
-			// Close any other graph views that might have been created
-			// Use iterateAllLeaves to find all graph views
-			const allGraphLeaves: WorkspaceLeaf[] = [];
-			this.app.workspace.iterateAllLeaves((leaf) => {
-				const viewState = leaf.getViewState();
-				if (viewState.type === 'graph') {
-					allGraphLeaves.push(leaf);
-				}
-			});
-			
-			for (const leaf of allGraphLeaves) {
-				if (leaf !== newGhostTab) {
-					void leaf.detach();
-				}
-			}
-			
-			// Wait for cleanup
-			await new Promise(resolve => setTimeout(resolve, 100));
-			
-			const shouldFocus = !this.isSettingsModalOpen();
-			this.app.workspace.setActiveLeaf(newGhostTab, { focus: shouldFocus });
-			
-			if (runCommand) {
-				this.runCommandOnOpen();
-			}
-			return true;
-		}
-
-		return false;
-	}
+	// Removed deprecated openGraphInGhostTab - now integrated into openHomeBaseInGhostTab
 
 	/**
 	 * Open the home base file
@@ -386,8 +197,8 @@ export class HomeBaseService {
 	} = {}): Promise<boolean> {
 		const { runCommand = true } = options;
 		const mode = this.plugin.settings.manualOpenMode;
-		
-		
+
+
 		// Use the new method with manual mode
 		return this.openHomeBaseWithMode(mode, runCommand);
 	}
@@ -427,7 +238,7 @@ export class HomeBaseService {
 			settings.value,
 			this.plugin
 		);
-		
+
 		if (!resolvedPath) {
 			// Log warning for debugging - file path couldn't be resolved
 			console.warn('[Home Base] Could not resolve path for new tab:', settings.type, settings.value);
@@ -437,19 +248,19 @@ export class HomeBaseService {
 		// Get the file - use metadataCache for better path resolution (like homepage plugin)
 		// This is especially important for periodic notes which may have been just created
 		let file = this.app.metadataCache.getFirstLinkpathDest(resolvedPath, '/');
-		
+
 		// If not found, try getFileByPath as fallback
 		if (!file) {
 			file = getFileByPath(this.app, resolvedPath);
 		}
-		
+
 		// For periodic notes, the path might be trimmed (no extension)
 		// Try with .md extension if still not found
 		if (!file && !resolvedPath.endsWith('.md') && !resolvedPath.endsWith('.canvas') && !resolvedPath.endsWith('.base')) {
 			const untrimmedPath = `${resolvedPath}.md`;
 			file = getFileByPath(this.app, untrimmedPath);
 		}
-		
+
 		if (!file) {
 			// Log warning for debugging - file not found
 			console.warn('[Home Base] File not found for new tab:', resolvedPath);
@@ -477,28 +288,28 @@ export class HomeBaseService {
 		// it merges with the ghost tab instead of creating a duplicate.
 		// BUT: If the user manually opened a file from explorer, we should NOT merge - let them have their tab.
 		const isTrulyEmpty = !leaf.view || leaf.view.getViewType() === 'empty';
-		
+
 		if (this.plugin.settings.showStickyHomeIcon && isTrulyEmpty) {
 			// Random types and periodic notes: don't pin, but can still merge
-			const isRandom = settings.type === HomeBaseType.Random || 
-			                 settings.type === HomeBaseType.RandomFolder ||
-			                 settings.type === HomeBaseType.DailyNote ||
-			                 settings.type === HomeBaseType.WeeklyNote ||
-			                 settings.type === HomeBaseType.MonthlyNote ||
-			                 settings.type === HomeBaseType.YearlyNote;
+			const isRandom = settings.type === HomeBaseType.Random ||
+				settings.type === HomeBaseType.RandomFolder ||
+				settings.type === HomeBaseType.DailyNote ||
+				settings.type === HomeBaseType.WeeklyNote ||
+				settings.type === HomeBaseType.MonthlyNote ||
+				settings.type === HomeBaseType.YearlyNote;
 			const ghostTab = this.findGhostTab(file, isRandom);
-			
+
 			if (ghostTab) {
 				// Close the new empty leaf since we're merging with ghost tab
 				void leaf.detach();
-				
+
 				// Focus the ghost tab and configure it
 				this.app.workspace.setActiveLeaf(ghostTab);
 				await this.configureView(ghostTab, file);
 				this.runCommandOnOpen();
 				return true;
 			}
-			
+
 			// No ghost tab found, but sticky icon is enabled - this tab should become the ghost tab
 			// Pin it so it's recognized as the ghost tab
 			this.ghostLeaves.add(leaf);
@@ -508,7 +319,7 @@ export class HomeBaseService {
 		}
 		await leaf.openFile(file);
 		await this.configureView(leaf, file);
-		
+
 		// Run command if configured
 		this.runCommandOnOpen();
 
@@ -542,7 +353,7 @@ export class HomeBaseService {
 		// Auto-scroll to bottom if enabled
 		if (settings.autoScroll) {
 			const count = view.editor.lineCount();
-			
+
 			if (state.mode === 'preview') {
 				view.previewMode.applyScroll(count - 4);
 			} else {
@@ -609,7 +420,6 @@ export class HomeBaseService {
 
 		// Revert to default view
 		const state = view.getState();
-		 
 		const config = this.app.vault.config;
 		const mode = config?.defaultViewMode || 'source';
 		const source = config?.livePreview !== undefined ? !config.livePreview : false;
@@ -646,7 +456,7 @@ export class HomeBaseService {
 		if (!file) return null;
 		const homeBasePath = file.path;
 
-		const leaves = LEAF_TYPES.flatMap(type => 
+		const leaves = LEAF_TYPES.flatMap(type =>
 			this.app.workspace.getLeavesOfType(type)
 		);
 
@@ -709,28 +519,62 @@ export class HomeBaseService {
 	} = {}): Promise<boolean> {
 		const { runCommand = true } = options;
 		const homeBaseSettings = this.plugin.getHomeBaseSettings();
-		
-		// Workspace and None don't work with ghost tab
-		if (homeBaseSettings.type === HomeBaseType.Workspace || 
-		    homeBaseSettings.type === HomeBaseType.None) {
+
+		// Handle non-file types (Workspace and None don't work with ghost tab)
+		if (homeBaseSettings.type === HomeBaseType.Workspace ||
+			homeBaseSettings.type === HomeBaseType.None) {
 			// For these types, just use normal open
 			return this.openHomeBaseWithMode('retain', runCommand);
 		}
 
-		// Graph view: don't use ghost tab (finding it is unreliable)
-		// Just open it normally like random files
+		// Graph view handling
 		if (homeBaseSettings.type === HomeBaseType.Graph) {
-			return this.openGraph();
+			// Find existing graph ghost tab
+			let ghostTab = this.findGraphGhostTab();
+
+			if (ghostTab) {
+				this.ghostLeaves.add(ghostTab);
+				ghostTab.setPinned(true);
+				this.app.workspace.setActiveLeaf(ghostTab, { focus: !this.isSettingsModalOpen() });
+				if (runCommand) this.runCommandOnOpen();
+				return true;
+			}
+
+			// Create new graph tab
+			const newLeaf = this.app.workspace.getLeaf('tab');
+			if (newLeaf) {
+				await newLeaf.setViewState({ type: 'graph', state: {} });
+				await new Promise(resolve => setTimeout(resolve, GRAPH_INIT_DELAY));
+
+				this.ghostLeaves.add(newLeaf);
+				newLeaf.setPinned(true);
+				this.app.workspace.setActiveLeaf(newLeaf, { focus: !this.isSettingsModalOpen() });
+				if (runCommand) this.runCommandOnOpen();
+				return true;
+			}
+
+			// Fallback to command
+			await this.openGraph();
+			await new Promise(resolve => setTimeout(resolve, GRAPH_COMMAND_FALLBACK_DELAY));
+			ghostTab = this.findGraphGhostTab();
+			if (ghostTab) {
+				this.ghostLeaves.add(ghostTab);
+				ghostTab.setPinned(true);
+				this.app.workspace.setActiveLeaf(ghostTab, { focus: !this.isSettingsModalOpen() });
+				if (runCommand) this.runCommandOnOpen();
+				return true;
+			}
+			return false;
 		}
 
 		// Random types and periodic notes: don't pin (file changes each time)
 		// But still allow merging with existing tabs if sticky icon is enabled
-		const isRandom = homeBaseSettings.type === HomeBaseType.Random || 
-		                 homeBaseSettings.type === HomeBaseType.RandomFolder ||
-		                 homeBaseSettings.type === HomeBaseType.DailyNote ||
-		                 homeBaseSettings.type === HomeBaseType.WeeklyNote ||
-		                 homeBaseSettings.type === HomeBaseType.MonthlyNote ||
-		                 homeBaseSettings.type === HomeBaseType.YearlyNote;
+		const isRandom = homeBaseSettings.type === HomeBaseType.Random ||
+			homeBaseSettings.type === HomeBaseType.RandomFolder ||
+			homeBaseSettings.type === HomeBaseType.DailyNote ||
+			homeBaseSettings.type === HomeBaseType.WeeklyNote ||
+			homeBaseSettings.type === HomeBaseType.MonthlyNote ||
+			homeBaseSettings.type === HomeBaseType.YearlyNote;
 
 		// Check if settings modal is open
 		if (this.isSettingsModalOpen()) {
@@ -743,7 +587,7 @@ export class HomeBaseService {
 			homeBaseSettings.value,
 			this.plugin
 		);
-		
+
 		if (!resolvedPath) {
 			return false;
 		}
@@ -751,40 +595,40 @@ export class HomeBaseService {
 		// Get the home base file - use metadataCache for better path resolution (like homepage plugin)
 		// This is especially important for periodic notes which may have been just created
 		let file = this.app.metadataCache.getFirstLinkpathDest(resolvedPath, '/');
-		
+
 		// If not found, try getFileByPath as fallback
 		if (!file) {
 			file = getFileByPath(this.app, resolvedPath);
 		}
-		
+
 		// For periodic notes, the path might be trimmed (no extension)
 		// Try with .md extension if still not found
 		if (!file && !resolvedPath.endsWith('.md') && !resolvedPath.endsWith('.canvas') && !resolvedPath.endsWith('.base')) {
 			const untrimmedPath = `${resolvedPath}.md`;
 			file = getFileByPath(this.app, untrimmedPath);
 		}
-		
+
 		if (!file) {
 			return false;
 		}
 
 		// Check if ghost tab already exists
 		const ghostTab = this.findGhostTab(file, isRandom);
-		
+
 		console.debug('[Home Base] openHomeBaseInGhostTab:', {
 			file: file.path,
 			ghostTabFound: !!ghostTab,
 			isRandom: isRandom,
 			zenMode: document.body.classList.contains('zenmode-active')
 		});
-		
+
 		if (ghostTab) {
 			// Ghost tab exists - just jump to it, don't close other tabs
 			// User can have multiple home base tabs open, but clicking sticky icon jumps to the "occupied" one
 			const shouldFocus = !this.isSettingsModalOpen();
 			this.app.workspace.setActiveLeaf(ghostTab, { focus: shouldFocus });
 			await this.configureView(ghostTab, file);
-			
+
 			if (runCommand) {
 				this.runCommandOnOpen();
 			}
@@ -799,22 +643,22 @@ export class HomeBaseService {
 		const newGhostTab = this.app.workspace.getLeaf('tab');
 		this.ghostLeaves.add(newGhostTab);
 		await newGhostTab.openFile(file);
-		
+
 		// Pin the ghost tab (unless it's random - file changes each time)
 		if (!isRandom) {
 			newGhostTab.setPinned(true);
 		}
-		
+
 		// Mark the tab header immediately after pinning (for auto-hide tab counting)
 		// Use a small delay to ensure the tab header exists
 		setTimeout(() => {
 			this.plugin.stickyTabService.updateTabHeaders();
 		}, 50);
-		
+
 		// Focus it
 		const shouldFocus = !this.isSettingsModalOpen();
 		this.app.workspace.setActiveLeaf(newGhostTab, { focus: shouldFocus });
-		
+
 		// Configure the view
 		await this.configureView(newGhostTab, file);
 
@@ -841,7 +685,7 @@ export class HomeBaseService {
 		const homeBaseSettings = this.plugin.getHomeBaseSettings();
 		const path = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.app);
 		if (!path) return null;
-		
+
 		return getFileByPath(this.app, path);
 	}
 
@@ -854,22 +698,22 @@ export class HomeBaseService {
 		layout.main = {
 			"id": "5324373015726ba8",
 			"type": "split",
-			"children": [{ 
+			"children": [{
 				"id": "4509724f8bf84da7",
 				"type": "tabs",
 				"children": [{
 					"id": "e7a7b303c61786dc",
 					"type": "leaf",
-					"state": {"type": "empty", "state": {}, "icon": "lucide-file", "title": "New tab"}
+					"state": { "type": "empty", "state": {}, "icon": "lucide-file", "title": "New tab" }
 				}]
 			}],
 			"direction": "vertical"
 		};
 		layout.active = "e7a7b303c61786dc";
 		await this.app.workspace.changeLayout(layout);
-		
+
 		if (Platform.isMobile) {
-			 
+
 			(this.app.workspace.rightSplit as { updateInfo?: () => void })?.updateInfo?.();
 		}
 	}
@@ -881,35 +725,35 @@ export class HomeBaseService {
 	async closeAllLeavesExcept(exceptLeaf: WorkspaceLeaf | null): Promise<void> {
 		// Use iterateAllLeaves to get ALL leaves
 		const leavesToClose: WorkspaceLeaf[] = [];
-		
+
 		this.app.workspace.iterateAllLeaves((leaf) => {
 			// Skip the exception leaf
 			if (leaf === exceptLeaf) {
 				return;
 			}
-			
+
 			// Try to determine if this is a main workspace leaf
 			// Get the view's container element
 			const view = leaf.view;
 			let container: HTMLElement | null = null;
-			
+
 			if (view) {
 				const viewAny = view as unknown as { containerEl?: HTMLElement };
 				container = viewAny.containerEl || null;
 			}
-			
+
 			// If no container from view, try leaf's containerEl
 			if (!container) {
 				const leafAny = leaf as unknown as { containerEl?: HTMLElement };
 				container = leafAny.containerEl || null;
 			}
-			
+
 			if (container) {
 				// Check if it's in the main workspace (root, not sidebar)
 				const rootWorkspace = container.closest('.workspace-split.mod-vertical.mod-root');
 				const leftSidebar = container.closest('.workspace-split.mod-left-split');
 				const rightSidebar = container.closest('.workspace-split.mod-right-split');
-				
+
 				if (rootWorkspace && !leftSidebar && !rightSidebar) {
 					leavesToClose.push(leaf);
 				}
@@ -931,40 +775,57 @@ export class HomeBaseService {
 				}
 			}
 		});
-		
-		
+
+
 		// Close all identified leaves
 		for (const leaf of leavesToClose) {
 			void leaf.detach();
 		}
-		
+
 		// Wait for detachments to complete
 		await new Promise(resolve => setTimeout(resolve, 200));
+	}
+
+	/**
+	 * Find an existing graph leaf that should be treated as a ghost tab
+	 */
+	private findGraphGhostTab(): WorkspaceLeaf | null {
+		let graphLeaves: WorkspaceLeaf[] = [];
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (leaf.view?.getViewType() === 'graph') {
+				graphLeaves.push(leaf);
+			}
+		});
+
+		// Prefer pinned graph view
+		const pinned = graphLeaves.find(l => l.getViewState().pinned === true);
+		if (pinned) return pinned;
+
+		// Fallback to first graph view if only one exists
+		if (graphLeaves.length === 1 && graphLeaves[0]) return graphLeaves[0];
+
+		return null;
 	}
 
 	/**
 	 * Check if the focused tab is the home base
 	 */
 	isFocusedOnHomeBase(): boolean {
-		const activeLeaf = this.app.workspace.getMostRecentLeaf();
+		const activeLeaf = this.app.workspace.getActiveViewOfType(OView)?.leaf;
 		if (!activeLeaf) return false;
 
-		// If it's a ghost leaf, it's definitely the home base
-		if (this.ghostLeaves.has(activeLeaf)) {
-			return true;
-		}
-
-		const activeFile = this.app.workspace.getActiveFile();
-		if (!activeFile) return false;
-
 		const homeBaseSettings = this.plugin.getHomeBaseSettings();
-		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.app);
-		
-		if (homeBasePath) {
-			return activeFile.path === homeBasePath || pathsEqual(activeFile.path, homeBasePath);
+
+		// Handle Graph view
+		if (homeBaseSettings.type === HomeBaseType.Graph) {
+			return activeLeaf.view?.getViewType() === 'graph';
 		}
 
-		return false;
+		// Handle file-based types
+		const homeBaseFile = this.getHomeBaseFile();
+		if (!homeBaseFile) return false;
+
+		return leafHasFile(activeLeaf, homeBaseFile.path);
 	}
 
 	/**
@@ -974,7 +835,7 @@ export class HomeBaseService {
 		const homeBaseSettings = this.plugin.getHomeBaseSettings();
 		const path = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.app);
 		if (!path) return false;
-		
+
 		return getFileByPath(this.app, path) !== null;
 	}
 
@@ -986,7 +847,7 @@ export class HomeBaseService {
 		// The config property is added via internal type augmentation
 		const config = this.app.vault.config;
 		if (!config) return undefined;
-		
+
 		return config.openBehavior;
 	}
 
@@ -997,21 +858,21 @@ export class HomeBaseService {
 		// Check for settings modal by looking for the modal container
 		// Try multiple selectors to be more robust
 		const settingsModal = document.querySelector('.modal-container.mod-settings') ||
-		                      document.querySelector('.modal.mod-settings') ||
-		                      document.querySelector('.vertical-tab-content');
-		
+			document.querySelector('.modal.mod-settings') ||
+			document.querySelector('.vertical-tab-content');
+
 		// Also check if any modal is open and contains settings content
 		if (!settingsModal) {
 			const allModals = document.querySelectorAll('.modal-container');
 			for (const modal of Array.from(allModals)) {
-				if (modal.querySelector('.vertical-tab-content') || 
-				    modal.querySelector('.settings-content') ||
-				    modal.classList.contains('mod-settings')) {
+				if (modal.querySelector('.vertical-tab-content') ||
+					modal.querySelector('.settings-content') ||
+					modal.classList.contains('mod-settings')) {
 					return true;
 				}
 			}
 		}
-		
+
 		return settingsModal !== null;
 	}
 
@@ -1034,7 +895,7 @@ export class HomeBaseService {
 			this.plugin.settings.homeBaseType = HomeBaseType.File;
 			this.plugin.settings.homeBaseValue = activeFile.path;
 		}
-		
+
 		await this.plugin.saveSettings();
 		return true;
 	}
@@ -1060,17 +921,28 @@ export class HomeBaseService {
 
 		const homeBaseSettings = this.plugin.getHomeBaseSettings();
 		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.app);
-		if (!homeBasePath) return;
+
+		// For file-based types, we need a path
+		if (!homeBasePath && homeBaseSettings.type !== HomeBaseType.Graph) return;
 
 		// For random/dynamic types, we don't restore ghost leaves
 		const isRandom = homeBaseSettings.type === HomeBaseType.Random ||
-		                 homeBaseSettings.type === HomeBaseType.RandomFolder ||
-		                 homeBaseSettings.type === HomeBaseType.DailyNote ||
-		                 homeBaseSettings.type === HomeBaseType.WeeklyNote ||
-		                 homeBaseSettings.type === HomeBaseType.MonthlyNote ||
-		                 homeBaseSettings.type === HomeBaseType.YearlyNote;
+			homeBaseSettings.type === HomeBaseType.RandomFolder ||
+			homeBaseSettings.type === HomeBaseType.DailyNote ||
+			homeBaseSettings.type === HomeBaseType.WeeklyNote ||
+			homeBaseSettings.type === HomeBaseType.MonthlyNote ||
+			homeBaseSettings.type === HomeBaseType.YearlyNote;
 
 		if (isRandom) return;
+
+		// Handle Graph view
+		if (homeBaseSettings.type === HomeBaseType.Graph) {
+			const ghostTab = this.findGraphGhostTab();
+			if (ghostTab && ghostTab.getViewState().pinned === true) {
+				this.ghostLeaves.add(ghostTab);
+			}
+			return;
+		}
 
 		// Find pinned home base tabs and mark the first one as a ghost leaf
 		const leaves: WorkspaceLeaf[] = [];
@@ -1082,7 +954,7 @@ export class HomeBaseService {
 		});
 
 		for (const leaf of leaves) {
-			if (leafHasFile(leaf, homeBasePath)) {
+			if (homeBasePath && leafHasFile(leaf, homeBasePath)) {
 				const viewState = leaf.getViewState();
 				if (viewState.pinned === true && !this.ghostLeaves.has(leaf)) {
 					// Found a pinned home base tab - mark it as ghost

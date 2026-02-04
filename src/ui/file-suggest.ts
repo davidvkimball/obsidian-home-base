@@ -45,10 +45,10 @@ export class FilePathSuggest extends AbstractInputSuggest<TFile> {
 		files.sort((a, b) => {
 			const aStartsWith = a.path.toLowerCase().startsWith(lowerQuery);
 			const bStartsWith = b.path.toLowerCase().startsWith(lowerQuery);
-			
+
 			if (aStartsWith && !bStartsWith) return -1;
 			if (!aStartsWith && bStartsWith) return 1;
-			
+
 			return a.path.localeCompare(b.path);
 		});
 
@@ -57,25 +57,27 @@ export class FilePathSuggest extends AbstractInputSuggest<TFile> {
 	}
 
 	renderSuggestion(file: TFile, el: HTMLElement): void {
+		el.addClass('home-base-suggestion-item');
+
 		// Show file name prominently
-		el.createEl('div', { 
-			text: file.basename,
+		const titleEl = el.createEl('div', {
 			cls: 'suggestion-title'
 		});
-		
-		// Show path in smaller text if different from basename
-		if (file.parent && file.parent.path !== '/') {
-			el.createEl('small', { 
-				text: file.parent.path,
-				cls: 'suggestion-path'
+		titleEl.createEl('span', { text: file.basename });
+
+		// Show file type indicator next to title
+		if (file.extension !== 'md') {
+			titleEl.createEl('span', {
+				text: file.extension.toUpperCase(),
+				cls: 'suggestion-flair'
 			});
 		}
 
-		// Show file type indicator
-		if (file.extension !== 'md') {
-			el.createEl('span', {
-				text: file.extension.toUpperCase(),
-				cls: 'suggestion-flair'
+		// Show path in smaller text if different from basename
+		if (file.parent && file.parent.path !== '/') {
+			el.createEl('div', {
+				text: file.parent.path,
+				cls: 'suggestion-note'
 			});
 		}
 	}
@@ -137,18 +139,18 @@ export class WorkspaceSuggest extends AbstractInputSuggest<string> {
 	}
 
 	getSuggestions(query: string): string[] {
-		 
+
 		const workspacesPlugin = this.app.internalPlugins?.plugins?.workspaces;
-		 
+
 		if (!workspacesPlugin?.enabled || !workspacesPlugin.instance?.workspaces) {
 			return [];
 		}
-		
-		 
+
+
 		const workspaces = Object.keys(workspacesPlugin.instance.workspaces);
 		const lowerQuery = query.toLowerCase();
-		
-		return workspaces.filter((workspace: string) => 
+
+		return workspaces.filter((workspace: string) =>
 			workspace.toLowerCase().includes(lowerQuery)
 		);
 	}

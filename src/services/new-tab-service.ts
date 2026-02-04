@@ -8,6 +8,21 @@ import { App, WorkspaceLeaf, View, TFile } from 'obsidian';
 import type HomeBasePlugin from '../main';
 import { HomeBaseType } from '../settings';
 
+/**
+ * Timing constants for new tab operations
+ * These delays are necessary for Obsidian to finish internal operations
+ * before Home Base processes the new tab.
+ */
+
+/** Delay for Obsidian to restore workspace on startup before Home Base runs */
+const STARTUP_RESTORE_DELAY = 500;
+
+/** Delay after closing all leaves to let detachments settle */
+const DETACH_SETTLE_DELAY = 200;
+
+/** Small safety delay to handle race conditions with other plugins */
+const PLUGIN_RACE_DELAY = 50;
+
 export class NewTabService {
 	private app: App;
 	private plugin: HomeBasePlugin;
@@ -48,7 +63,7 @@ export class NewTabService {
 	 * Handle app startup - open home base if needed
 	 * Only called on actual app startup, not plugin reloads
 	 */
-	private 	async handleStartup(): Promise<void> {
+	private async handleStartup(): Promise<void> {
 		const settings = this.plugin.settings;
 
 		// Check if we should skip (openOnStartup is false, or no home base configured)
@@ -69,7 +84,7 @@ export class NewTabService {
 		// Wait a bit for Obsidian to finish restoring the workspace
 		// This ensures all tabs are loaded before we try to close them
 		// Need longer delay to ensure workspace is fully restored
-		await new Promise(resolve => setTimeout(resolve, 500));
+		await new Promise(resolve => setTimeout(resolve, STARTUP_RESTORE_DELAY));
 
 		// If openMode is replace-all, close ALL tabs first, then open home base
 		// This should ONLY happen on startup, not when manually opening
@@ -83,14 +98,14 @@ export class NewTabService {
 				const allLeaves = this.app.workspace.getLeavesOfType('markdown');
 				for (const leaf of allLeaves) {
 					const view = leaf.view;
-					 
+
 					const markdownView = view as unknown as { file?: TFile; containerEl?: HTMLElement };
 					if (markdownView.file) {
 						const file = markdownView.file;
-					// Release notes are typically in config folder or have specific naming
-					// Check if it's a release notes tab by looking at the file path
-					const configDir = this.app.vault.configDir;
-					if (file.path.includes('release') || file.path.includes(configDir)) {
+						// Release notes are typically in config folder or have specific naming
+						// Check if it's a release notes tab by looking at the file path
+						const configDir = this.app.vault.configDir;
+						if (file.path.includes('release') || file.path.includes(configDir)) {
 							// Check if it's actually a release notes view
 							const container = markdownView.containerEl;
 							if (container && container.querySelector('.release-notes')) {
@@ -101,11 +116,11 @@ export class NewTabService {
 					}
 				}
 			}
-			
+
 			// Close ALL tabs - don't try to keep any, just close everything (except release notes if applicable)
 			await this.plugin.homeService.closeAllLeavesExcept(exceptLeaf);
 			// Wait longer to ensure all detachments are processed
-			await new Promise(resolve => setTimeout(resolve, 200));
+			await new Promise(resolve => setTimeout(resolve, DETACH_SETTLE_DELAY));
 		}
 
 		// On startup, use ghost tab if sticky icon is enabled, otherwise use normal openHomeBase
@@ -132,21 +147,21 @@ export class NewTabService {
 		// Check for settings modal by looking for the modal container
 		// Try multiple selectors to be more robust
 		const settingsModal = document.querySelector('.modal-container.mod-settings') ||
-		                      document.querySelector('.modal.mod-settings') ||
-		                      document.querySelector('.vertical-tab-content');
-		
+			document.querySelector('.modal.mod-settings') ||
+			document.querySelector('.vertical-tab-content');
+
 		// Also check if any modal is open and contains settings content
 		if (!settingsModal) {
 			const allModals = document.querySelectorAll('.modal-container');
 			for (const modal of Array.from(allModals)) {
-				if (modal.querySelector('.vertical-tab-content') || 
-				    modal.querySelector('.settings-content') ||
-				    modal.classList.contains('mod-settings')) {
+				if (modal.querySelector('.vertical-tab-content') ||
+					modal.querySelector('.settings-content') ||
+					modal.classList.contains('mod-settings')) {
 					return true;
 				}
 			}
 		}
-		
+
 		return settingsModal !== null;
 	}
 
@@ -157,7 +172,7 @@ export class NewTabService {
 	private async hasUrlParams(): Promise<boolean> {
 		// Check for mobile URL params (Capacitor API)
 		const windowAny = window as unknown as Record<string, unknown>;
-		
+
 		const capacitor = windowAny.Capacitor as { Plugins?: { App?: { getLaunchUrl: () => Promise<{ url?: string } | null> } } } | undefined;
 		if (capacitor?.Plugins?.App) {
 			try {
@@ -166,7 +181,7 @@ export class NewTabService {
 					const url = new URL(launchUrl.url);
 					const params = Array.from(url.searchParams.keys());
 					const action = url.hostname;
-					
+
 					if (['open', 'advanced-uri'].includes(action) &&
 						['file', 'filepath', 'workspace'].some(e => params.includes(e))) {
 						return true;
@@ -182,7 +197,7 @@ export class NewTabService {
 		if (obsAct) {
 			const params = Object.keys(obsAct);
 			const action = obsAct.action;
-			
+
 			if (action && ['open', 'advanced-uri'].includes(action) &&
 				['file', 'filepath', 'workspace'].some(e => params.includes(e))) {
 				return true;
@@ -258,19 +273,19 @@ export class NewTabService {
 	 */
 	private isEmptyTab(leaf: WorkspaceLeaf): boolean {
 		if (!leaf.view) return true;
-		
+
 		// Check if view type is empty
 		if (leaf.view.getViewType() !== 'empty') {
 			return false;
 		}
-		
+
 		// Double-check: if the view has a state with a file, it's not empty
 		// This prevents replacing tabs that were just opened with files from explorer
 		const viewState = leaf.getViewState();
 		if (viewState && (viewState as { file?: string }).file) {
 			return false;
 		}
-		
+
 		return true;
 	}
 
@@ -284,14 +299,14 @@ export class NewTabService {
 		this.app.workspace.iterateRootLeaves((l) => {
 			tabCount++;
 		});
-		
+
 		const result = tabCount === 1;
 		console.debug('[Home Base] isOnlyTab:', {
 			leaf: leaf,
 			tabCount: tabCount,
 			isOnlyTab: result
 		});
-		
+
 		return result;
 	}
 
@@ -312,7 +327,7 @@ export class NewTabService {
 		}
 
 		// Small delay to handle race conditions with other plugins
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await new Promise(resolve => setTimeout(resolve, PLUGIN_RACE_DELAY));
 
 		// If this is for new tab replacement, check again after delay
 		if (!isAllTabsClosed) {
@@ -337,10 +352,10 @@ export class NewTabService {
 
 		// If this is for "all tabs closed", use home base settings
 		// Otherwise, use new tab settings (for "replace new tabs" feature)
-		const settings = isAllTabsClosed 
+		const settings = isAllTabsClosed
 			? this.plugin.getHomeBaseSettings()
 			: this.plugin.getNewTabSettings();
-		
+
 		console.debug('[Home Base] replaceEmptyTab:', {
 			leaf: leaf,
 			isAllTabsClosed: isAllTabsClosed,
@@ -349,11 +364,11 @@ export class NewTabService {
 			newTabMode: this.plugin.settings.newTabMode,
 			useDifferentFileForNewTab: this.plugin.settings.useDifferentFileForNewTab
 		});
-		
+
 		// Open file in this leaf
 		// Pass isNewTab=true to skip pinning/ghost tab logic - new tabs should work independently
 		const success = await this.plugin.homeService.openInLeafWithSettings(leaf, settings, true);
-		
+
 		if (!success) {
 			console.warn('[Home Base] Failed to open file:', settings);
 		} else {

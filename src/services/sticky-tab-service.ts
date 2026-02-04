@@ -5,9 +5,24 @@
 
 import { Menu, Platform, setIcon, WorkspaceLeaf } from 'obsidian';
 import type HomeBasePlugin from '../main';
+import { HomeBaseType } from '../settings';
 import { getFileByPath, leafHasFile } from '../utils/file-utils';
 import { resolvePathSync } from '../utils/homebase-resolver';
 import { IconPicker } from '../ui/icon-picker';
+
+/**
+ * Timing constants for sticky tab operations
+ * These delays are necessary for UI updates and DOM monitoring.
+ */
+
+/** Delay for tab header updates after opening home base */
+const TAB_HEADER_OPEN_DELAY = 150;
+
+/** Interval for periodic icon placement check (ensures it survives DOM updates) */
+const ICON_PLACEMENT_CHECK_INTERVAL = 100;
+
+/** Small delay to catch containers in newly opened windows */
+const WINDOW_OPEN_CONTAINER_DELAY = 100;
 
 /**
  * CSS class for the sticky home icon container
@@ -78,13 +93,13 @@ export class StickyTabService {
 	private updateWorkspaceClass(enabled: boolean): void {
 		const applyToDocument = (doc: Document) => {
 			const mainWorkspace = doc.querySelector('.workspace-split.mod-vertical.mod-root');
-		if (!mainWorkspace) return;
+			if (!mainWorkspace) return;
 
-		if (enabled) {
-			mainWorkspace.classList.add('home-base-sticky-icon-enabled');
-		} else {
-			mainWorkspace.classList.remove('home-base-sticky-icon-enabled');
-		}
+			if (enabled) {
+				mainWorkspace.classList.add('home-base-sticky-icon-enabled');
+			} else {
+				mainWorkspace.classList.remove('home-base-sticky-icon-enabled');
+			}
 		};
 
 		// Apply to main window
@@ -120,7 +135,7 @@ export class StickyTabService {
 		this.stickyIconEl.addEventListener('click', (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			
+
 			// Open home base in ghost tab (always use ghost tab for sticky icon)
 			void this.plugin.homeService.openHomeBaseInGhostTab({
 				runCommand: true,
@@ -128,7 +143,7 @@ export class StickyTabService {
 				// Update tab headers after opening, with a slight delay to let animations complete
 				setTimeout(() => {
 					this.updateTabHeaders();
-				}, 150);
+				}, TAB_HEADER_OPEN_DELAY);
 			});
 		});
 
@@ -136,9 +151,9 @@ export class StickyTabService {
 		this.stickyIconEl.addEventListener('contextmenu', (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			
+
 			const menu = new Menu();
-			
+
 			// Add Close home base option (first)
 			menu.addItem((item) => {
 				item
@@ -150,7 +165,7 @@ export class StickyTabService {
 						void this.closeHomeBase(true);
 					});
 			});
-			
+
 			// Add Change icon option (second)
 			menu.addItem((item) => {
 				item
@@ -210,16 +225,16 @@ export class StickyTabService {
 
 			// Update active state after insertion
 			this.updateActiveState();
-			
+
 			// Update tab headers when icon is created
 			this.updateTabHeaders();
-			
+
 			// Ensure workspace class is set
 			this.updateWorkspaceClass(true);
-			
+
 			// Update icon position based on sidebar state
 			this.updateIconPositionForSidebar();
-			
+
 			// Watch for sidebar collapse/expand changes
 			this.watchSidebarState();
 		};
@@ -235,7 +250,7 @@ export class StickyTabService {
 				return;
 			}
 			ensureIconInPlace();
-		}, 100); // Check every 100ms - more frequent to catch container recreation immediately
+		}, ICON_PLACEMENT_CHECK_INTERVAL); // Check every 100ms - more frequent to catch container recreation immediately
 
 		// Store interval so we can clear it later
 		this.stickyIconEl._checkInterval = checkInterval;
@@ -263,7 +278,7 @@ export class StickyTabService {
 		if (mainWorkspace) {
 			const containerObserver = new MutationObserver(() => {
 				if (!this.stickyIconEl || !this.plugin.settings.showStickyHomeIcon) return;
-				
+
 				// Check if tab header container inner exists and icon is missing
 				const tabHeaderContainerInner = mainWorkspace.querySelector('.workspace-tab-header-container-inner');
 				if (tabHeaderContainerInner) {
@@ -401,19 +416,19 @@ export class StickyTabService {
 			const workspaceObserver = new MutationObserver(() => {
 				const newContainers = doc.querySelectorAll('.workspace-tab-header-container-inner');
 				newContainers.forEach(observeContainer);
-		});
+			});
 
 			const mainWorkspace = doc.querySelector('.workspace-split.mod-vertical.mod-root');
-		if (mainWorkspace) {
-			workspaceObserver.observe(mainWorkspace, {
-				childList: true,
-				subtree: true
-			});
-		}
+			if (mainWorkspace) {
+				workspaceObserver.observe(mainWorkspace, {
+					childList: true,
+					subtree: true
+				});
+			}
 		};
 
 		setupWorkspaceObserver(window);
-		
+
 		// Register for future windows
 		this.plugin.registerEvent(
 			this.plugin.app.workspace.on('window-open', (win) => {
@@ -421,7 +436,7 @@ export class StickyTabService {
 				if (actualWindow instanceof Window) {
 					setupWorkspaceObserver(actualWindow);
 					// Re-run observe all to catch containers in the new window
-					setTimeout(observeAllWindows, 100);
+					setTimeout(observeAllWindows, WINDOW_OPEN_CONTAINER_DELAY);
 				}
 			})
 		);
@@ -462,7 +477,7 @@ export class StickyTabService {
 		// RESTORE EVERYTHING before fully removing
 		// This ensures tab headers are visible again and workspace classes are removed
 		this.updateWorkspaceClass(false);
-		
+
 		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
 			// Only process leaves in the main workspace (not sidebars)
 			const view = leaf.view;
@@ -549,7 +564,7 @@ export class StickyTabService {
 		if (!this.stickyIconEl) return;
 
 		const isActive = this.plugin.homeService.isFocusedOnHomeBase();
-		
+
 		if (isActive) {
 			this.stickyIconEl.classList.add(STICKY_ICON_ACTIVE_CLASS);
 		} else {
@@ -566,11 +581,11 @@ export class StickyTabService {
 	 */
 	private isLeftSidebarCollapsed(): boolean {
 		// Use the correct selector for left sidebar
-		const leftSidebar = document.querySelector('.workspace-split.mod-left-split') || 
-		                    document.querySelector('.mod-left-split');
-		
+		const leftSidebar = document.querySelector('.workspace-split.mod-left-split') ||
+			document.querySelector('.mod-left-split');
+
 		if (!leftSidebar) return false;
-		
+
 		// Check for the is-sidedock-collapsed class - this is the most reliable indicator
 		return leftSidebar.classList.contains('is-sidedock-collapsed');
 	}
@@ -603,12 +618,12 @@ export class StickyTabService {
 		if (this.sidebarObserver) {
 			this.sidebarObserver.disconnect();
 		}
-		
-		const leftSidebar = document.querySelector('.workspace-split.mod-left-split') || 
-		                    document.querySelector('.mod-left-split');
-		
+
+		const leftSidebar = document.querySelector('.workspace-split.mod-left-split') ||
+			document.querySelector('.mod-left-split');
+
 		if (!leftSidebar) return;
-		
+
 		// Watch for class changes on the sidebar element
 		this.sidebarObserver = new MutationObserver((mutations) => {
 			let shouldUpdate = false;
@@ -621,7 +636,7 @@ export class StickyTabService {
 				this.updateIconPositionForSidebar();
 			}
 		});
-		
+
 		this.sidebarObserver.observe(leftSidebar, {
 			attributes: true,
 			attributeFilter: ['class'],
@@ -677,20 +692,20 @@ export class StickyTabService {
 					tabHeader.classList.remove('is-home-base-tab');
 					tabHeader.removeAttribute('data-home-base-ghost');
 					tabHeader.removeAttribute('aria-hidden');
-					
-				const tabHeaderExtended = tabHeader as TabHeaderElement;
-				if (tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader)) {
-					const parent = tabHeaderExtended._homeBaseParent;
-					const nextSibling = tabHeaderExtended._homeBaseNextSibling;
-					if (parent) {
-						if (nextSibling && nextSibling.parentElement === parent) {
-							parent.insertBefore(tabHeader, nextSibling);
-						} else {
-							parent.appendChild(tabHeader);
+
+					const tabHeaderExtended = tabHeader as TabHeaderElement;
+					if (tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader)) {
+						const parent = tabHeaderExtended._homeBaseParent;
+						const nextSibling = tabHeaderExtended._homeBaseNextSibling;
+						if (parent) {
+							if (nextSibling && nextSibling.parentElement === parent) {
+								parent.insertBefore(tabHeader, nextSibling);
+							} else {
+								parent.appendChild(tabHeader);
+							}
 						}
-					}
-					delete tabHeaderExtended._homeBaseParent;
-					delete tabHeaderExtended._homeBaseNextSibling;
+						delete tabHeaderExtended._homeBaseParent;
+						delete tabHeaderExtended._homeBaseNextSibling;
 					}
 				}
 			});
@@ -699,7 +714,7 @@ export class StickyTabService {
 
 		// CRITICAL: Remove ghost tab headers SYNCHRONOUSLY before any animation frames
 		// This prevents them from briefly appearing when tabs change
-		const ghostTabHeadersToRemove: Array<{tabHeader: HTMLElement; leaf: WorkspaceLeaf}> = [];
+		const ghostTabHeadersToRemove: Array<{ tabHeader: HTMLElement; leaf: WorkspaceLeaf }> = [];
 
 		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
 			// Only process leaves in the main workspace (not sidebars)
@@ -727,15 +742,15 @@ export class StickyTabService {
 					if (this.plugin.homeService.isGhostLeaf(leaf)) {
 						const tabHeader = this.getTabHeaderForLeaf(leaf);
 						if (tabHeader && tabHeader.parentElement) {
-							ghostTabHeadersToRemove.push({tabHeader, leaf});
+							ghostTabHeadersToRemove.push({ tabHeader, leaf });
 						}
 					}
 				}
 			}
 		});
-		
+
 		// Remove all ghost tab headers synchronously BEFORE any rendering
-		ghostTabHeadersToRemove.forEach(({tabHeader}) => {
+		ghostTabHeadersToRemove.forEach(({ tabHeader }) => {
 			const parent = tabHeader.parentElement;
 			if (parent && parent.classList.contains('workspace-tab-header-container-inner')) {
 				const tabHeaderExtended = tabHeader as TabHeaderElement;
@@ -801,8 +816,9 @@ export class StickyTabService {
 							}
 
 							// Check if this is a normal home base tab (not ghost) to apply active state styling if needed
-							// We only do this if we have a path to compare against
-							if (homeBasePath && leafHasFile(leaf, homeBasePath)) {
+							// We only do this if we have a path to compare against (or if it's a graph view)
+							const isGraphHome = homeBaseSettings.type === HomeBaseType.Graph && leaf.view?.getViewType() === 'graph';
+							if ((homeBasePath && leafHasFile(leaf, homeBasePath)) || isGraphHome) {
 								tabHeader.classList.add('is-home-base-tab');
 							} else {
 								tabHeader.classList.remove('is-home-base-tab');
@@ -840,7 +856,7 @@ export class StickyTabService {
 
 		// Find all tab headers with matching view type in THIS window
 		const tabHeaders = doc.querySelectorAll(`.workspace-tab-header[data-type="${viewType}"]`);
-		
+
 		// If this is the active leaf, prefer the active tab header in THIS window
 		if (isActive) {
 			const activeHeader = doc.querySelector('.workspace-tab-header.is-active');
@@ -883,17 +899,17 @@ export class StickyTabService {
 	closeHomeBase(actuallyClose: boolean = false): void {
 		const homeBaseSettings = this.plugin.getHomeBaseSettings();
 		const homeBasePath = resolvePathSync(homeBaseSettings.type, homeBaseSettings.value, this.plugin.app);
-		
+
 		// Find the ghost tab (the "occupied" slot - pinned home base tab)
 		const ghostTabs: WorkspaceLeaf[] = [];
 		const allHomeBaseLeaves: WorkspaceLeaf[] = [];
-		
+
 		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
 			const isGhost = this.plugin.homeService.isGhostLeaf(leaf);
 			if (isGhost) {
 				ghostTabs.push(leaf);
 			}
-			
+
 			if (homeBasePath && leafHasFile(leaf, homeBasePath)) {
 				allHomeBaseLeaves.push(leaf);
 			}

@@ -41,11 +41,11 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		const generalGroup = new SettingGroup(containerEl);
 
 		// Home page type dropdown
-		generalGroup.addSetting((setting: any) => {
+		generalGroup.addSetting(setting => {
 			setting
 				.setName('Type')
 				.setDesc('What to open as your home base')
-				.addDropdown((dropdown: any) => {
+				.addDropdown(dropdown => {
 					let pluginDisabled = false;
 
 					for (const type of Object.values(HomeBaseType)) {
@@ -69,7 +69,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 					dropdown
 						.setValue(activeType || HomeBaseType.File)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							if (isMobile) {
 								this.plugin.settings.mobileHomeBaseType = value as HomeBaseType;
 							} else {
@@ -102,7 +102,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 		// Value input (conditional on type)
 		if (!UNCHANGEABLE_TYPES.includes(activeType)) {
-			generalGroup.addSetting((setting: any) => {
+			generalGroup.addSetting(setting => {
 				let desc = '';
 				let placeholder = '';
 
@@ -126,7 +126,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							(activeType === HomeBaseType.RandomFolder || activeType === HomeBaseType.NewNote) ? 'Folder' :
 								activeType === HomeBaseType.Journal ? 'Journal' : 'Value')
 					.setDesc(desc)
-					.addText((text: any) => {
+					.addText(text => {
 						// Add appropriate suggester
 						if (activeType === HomeBaseType.File) {
 							new FilePathSuggest(this.app, text.inputEl);
@@ -139,7 +139,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 						text
 							.setPlaceholder(placeholder)
 							.setValue(activeValue || '')
-							.onChange(async (value: any) => {
+							.onChange(async value => {
 								if (isMobile) {
 									this.plugin.settings.mobileHomeBaseValue = value;
 								} else {
@@ -151,14 +151,14 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 			});
 		}
 
-		generalGroup.addSetting((setting: any) => {
+		generalGroup.addSetting(setting => {
 			setting
 				.setName('Open on startup')
 				.setDesc('Open the home base when launching Obsidian')
-				.addToggle((toggle: any) => {
+				.addToggle(toggle => {
 					toggle
 						.setValue(this.plugin.settings.openOnStartup)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.openOnStartup = value;
 							await this.plugin.saveSettings();
 						});
@@ -179,93 +179,93 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		// "Open when empty" setting removed - redundant with "New tab replacement: only when empty"
 		// Since Obsidian auto-creates an empty tab when you close the last one, they do the same thing
 
-		generalGroup.addSetting((setting: any) => {
+		generalGroup.addSetting(setting => {
 			setting
 				.setName('Opening mode (startup)')
 				.setDesc('How to handle existing tabs when opening on startup')
-				.addDropdown((dropdown: any) => {
+				.addDropdown(dropdown => {
 					for (const [value, label] of Object.entries(OPENING_MODE_OPTIONS)) {
 						dropdown.addOption(value, label);
 					}
 					dropdown
 						.setValue(this.plugin.settings.openMode)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.openMode = value as OpeningMode;
 							await this.plugin.saveSettings();
 						});
 				});
 		});
 
-		generalGroup.addSetting((setting: any) => {
+		generalGroup.addSetting(setting => {
 			setting
 				.setName('Opening mode (manual)')
 				.setDesc('How to handle existing tabs when opening manually')
-				.addDropdown((dropdown: any) => {
+				.addDropdown(dropdown => {
 					for (const [value, label] of Object.entries(OPENING_MODE_OPTIONS)) {
 						dropdown.addOption(value, label);
 					}
 					dropdown
 						.setValue(this.plugin.settings.manualOpenMode)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.manualOpenMode = value as OpeningMode;
 							await this.plugin.saveSettings();
 						});
 				});
 		});
 
-		generalGroup.addSetting((setting: any) => {
+		generalGroup.addSetting(setting => {
 			setting
 				.setName('View mode')
 				.setDesc('How to open Markdown files')
-				.addDropdown((dropdown: any) => {
+				.addDropdown(dropdown => {
 					for (const [value, label] of Object.entries(VIEW_MODE_OPTIONS)) {
 						dropdown.addOption(value, label);
 					}
 					dropdown
 						.setValue(this.plugin.settings.openViewMode)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.openViewMode = value as ViewMode;
 							await this.plugin.saveSettings();
 						});
 				});
 		});
 
-		generalGroup.addSetting((setting: any) => {
+		generalGroup.addSetting(setting => {
 			setting
 				.setName('Revert view on close')
 				.setDesc('When navigating away from the home base, restore the default view')
-				.addToggle((toggle: any) => {
+				.addToggle(toggle => {
 					toggle
 						.setValue(this.plugin.settings.revertView)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.revertView = value;
 							await this.plugin.saveSettings();
 						});
 				});
 		});
 
-		generalGroup.addSetting((setting: any) => {
+		generalGroup.addSetting(setting => {
 			setting
 				.setName('Auto-scroll')
 				.setDesc('When opening the home base, scroll to the bottom and focus on the last line')
-				.addToggle((toggle: any) => {
+				.addToggle(toggle => {
 					toggle
 						.setValue(this.plugin.settings.autoScroll)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.autoScroll = value;
 							await this.plugin.saveSettings();
 						});
 				});
 		});
 
-		generalGroup.addSetting((setting: any) => {
+		generalGroup.addSetting(setting => {
 			setting
 				.setName('Hide release notes')
 				.setDesc('Never display release notes when Obsidian updates')
-				.addToggle((toggle: any) => {
+				.addToggle(toggle => {
 					toggle
 						.setValue(this.plugin.settings.hideReleaseNotes)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.hideReleaseNotes = value;
 							await this.plugin.saveSettings();
 						});
@@ -275,28 +275,28 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		// Tab Behavior Settings
 		const tabGroup = new SettingGroup(containerEl).setHeading('Tab Behavior');
 
-		tabGroup.addSetting((setting: any) => {
+		tabGroup.addSetting(setting => {
 			setting
 				.setName('Open home base when all tabs are closed')
 				.setDesc('When you close all tabs, automatically open the home base')
-				.addToggle((toggle: any) => {
+				.addToggle(toggle => {
 					toggle
 						.setValue(this.plugin.settings.openWhenAllTabsClosed)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.openWhenAllTabsClosed = value;
 							await this.plugin.saveSettings();
 						});
 				});
 		});
 
-		tabGroup.addSetting((setting: any) => {
+		tabGroup.addSetting(setting => {
 			setting
 				.setName('Replace new tabs')
 				.setDesc('Open home base instead of new empty tabs (works independently of "open home base when all tabs are closed")')
-				.addToggle((toggle: any) => {
+				.addToggle(toggle => {
 					toggle
 						.setValue(this.plugin.settings.replaceNewTab)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.replaceNewTab = value;
 							await this.plugin.saveSettings();
 
@@ -320,17 +320,17 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 		// Only show new tab mode if replace new tab is enabled
 		if (this.plugin.settings.replaceNewTab) {
-			tabGroup.addSetting((setting: any) => {
+			tabGroup.addSetting(setting => {
 				setting
 					.setName('New tab replacement mode')
 					.setDesc('When to replace new tabs (only when no tabs are open, or always)')
-					.addDropdown((dropdown: any) => {
+					.addDropdown(dropdown => {
 						for (const [value, label] of Object.entries(NEW_TAB_MODE_OPTIONS)) {
 							dropdown.addOption(value, label);
 						}
 						dropdown
 							.setValue(this.plugin.settings.newTabMode)
-							.onChange(async (value: any) => {
+							.onChange(async value => {
 								this.plugin.settings.newTabMode = value as NewTabMode;
 								await this.plugin.saveSettings();
 							});
@@ -338,14 +338,14 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 			});
 
 			// Use different file for new tabs toggle
-			tabGroup.addSetting((setting: any) => {
+			tabGroup.addSetting(setting => {
 				setting
 					.setName('Use different home base for new tabs')
 					.setDesc('Configure a different home base to open for new tabs (instead of the main home base)')
-					.addToggle((toggle: any) => {
+					.addToggle(toggle => {
 						toggle
 							.setValue(this.plugin.settings.useDifferentFileForNewTab)
-							.onChange(async (value: any) => {
+							.onChange(async value => {
 								this.plugin.settings.useDifferentFileForNewTab = value;
 								await this.plugin.saveSettings();
 
@@ -373,11 +373,11 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 				const desktopValue = this.plugin.settings.newTabValue || '';
 
 				// New tab type dropdown
-				tabGroup.addSetting((setting: any) => {
+				tabGroup.addSetting(setting => {
 					setting
 						.setName('New tab type')
 						.setDesc('What to open for new tabs')
-						.addDropdown((dropdown: any) => {
+						.addDropdown(dropdown => {
 							let pluginDisabled = false;
 
 							for (const type of Object.values(HomeBaseType)) {
@@ -401,7 +401,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 							dropdown
 								.setValue(desktopType)
-								.onChange(async (value: any) => {
+								.onChange(async value => {
 									this.plugin.settings.newTabType = value as HomeBaseType;
 									await this.plugin.saveSettings();
 
@@ -430,7 +430,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 				// Value input (conditional on type)
 				if (!UNCHANGEABLE_TYPES.includes(desktopType)) {
-					tabGroup.addSetting((setting: any) => {
+					tabGroup.addSetting(setting => {
 						let desc = '';
 						let placeholder = '';
 
@@ -454,7 +454,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 									desktopType === HomeBaseType.RandomFolder ? 'New tab folder' :
 										desktopType === HomeBaseType.Journal ? 'New tab journal' : 'New tab value')
 							.setDesc(desc)
-							.addText((text: any) => {
+							.addText(text => {
 								// Add appropriate suggester
 								if (desktopType === HomeBaseType.File) {
 									new FilePathSuggest(this.app, text.inputEl);
@@ -467,7 +467,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 								text
 									.setPlaceholder(placeholder)
 									.setValue(desktopValue || '')
-									.onChange(async (value: any) => {
+									.onChange(async value => {
 										this.plugin.settings.newTabValue = value;
 										await this.plugin.saveSettings();
 									});
@@ -483,14 +483,14 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		// UI Features Settings
 		const uiGroup = new SettingGroup(containerEl).setHeading('UI Features');
 
-		uiGroup.addSetting((setting: any) => {
+		uiGroup.addSetting(setting => {
 			setting
 				.setName('Sticky home icon')
 				.setDesc('Show a home icon in the tab bar that stays pinned to the left (desktop only)')
-				.addToggle((toggle: any) => {
+				.addToggle(toggle => {
 					toggle
 						.setValue(this.plugin.settings.showStickyHomeIcon)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.showStickyHomeIcon = value;
 							await this.plugin.saveSettings();
 							this.plugin.updateStickyTabIcon();
@@ -515,11 +515,11 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 		// Only show sticky icon settings if sticky icon is enabled
 		if (this.plugin.settings.showStickyHomeIcon) {
-			uiGroup.addSetting((setting: any) => {
+			uiGroup.addSetting(setting => {
 				setting
 					.setName('Icon')
 					.setDesc('The icon to display in the sticky home icon')
-					.addButton((button: any) => {
+					.addButton(button => {
 						const iconName = this.plugin.settings.stickyIconName || 'home';
 						button
 							.setButtonText('Change icon')
@@ -544,14 +544,14 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 					});
 			});
 
-			uiGroup.addSetting((setting: any) => {
+			uiGroup.addSetting(setting => {
 				setting
 					.setName('Hide tab header')
 					.setDesc('Hide the sticky home tab header when it\'s open, using the sticky icon as the tab indicator')
-					.addToggle((toggle: any) => {
+					.addToggle(toggle => {
 						toggle
 							.setValue(this.plugin.settings.hideHomeTabHeader)
-							.onChange(async (value: any) => {
+							.onChange(async value => {
 								this.plugin.settings.hideHomeTabHeader = value;
 								await this.plugin.saveSettings();
 								this.plugin.stickyTabService.updateTabHeaders();
@@ -564,14 +564,14 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		// Mobile Settings
 		const mobileGroup = new SettingGroup(containerEl).setHeading('Mobile');
 
-		mobileGroup.addSetting((setting: any) => {
+		mobileGroup.addSetting(setting => {
 			setting
 				.setName('Separate mobile home base')
 				.setDesc('Use a different home base on mobile devices')
-				.addToggle((toggle: any) => {
+				.addToggle(toggle => {
 					toggle
 						.setValue(this.plugin.settings.separateMobile)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.separateMobile = value;
 							await this.plugin.saveSettings();
 
@@ -592,11 +592,11 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 		// Show mobile-specific settings if separate mobile is enabled
 		if (this.plugin.settings.separateMobile) {
-			mobileGroup.addSetting((setting: any) => {
+			mobileGroup.addSetting(setting => {
 				setting
 					.setName('Mobile home base')
 					.setDesc('What to open as your home base on mobile')
-					.addDropdown((dropdown: any) => {
+					.addDropdown(dropdown => {
 						const mobileType = this.plugin.settings.mobileHomeBaseType || HomeBaseType.File;
 						let pluginDisabled = false;
 
@@ -621,7 +621,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 						dropdown
 							.setValue(mobileType)
-							.onChange(async (value: any) => {
+							.onChange(async value => {
 								this.plugin.settings.mobileHomeBaseType = value as HomeBaseType;
 								await this.plugin.saveSettings();
 
@@ -648,7 +648,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 			});
 
 			if (!UNCHANGEABLE_TYPES.includes(this.plugin.settings.mobileHomeBaseType)) {
-				mobileGroup.addSetting((setting: any) => {
+				mobileGroup.addSetting(setting => {
 					const mobileType = this.plugin.settings.mobileHomeBaseType;
 					let desc = '';
 					let placeholder = '';
@@ -673,7 +673,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 								mobileType === HomeBaseType.RandomFolder ? 'Mobile folder' :
 									mobileType === HomeBaseType.Journal ? 'Mobile journal' : 'Mobile value')
 						.setDesc(desc)
-						.addText((text: any) => {
+						.addText(text => {
 							if (mobileType === HomeBaseType.File) {
 								new FilePathSuggest(this.app, text.inputEl);
 							} else if (mobileType === HomeBaseType.Workspace) {
@@ -685,7 +685,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 							text
 								.setPlaceholder(placeholder)
 								.setValue(this.plugin.settings.mobileHomeBaseValue || '')
-								.onChange(async (value: any) => {
+								.onChange(async value => {
 									this.plugin.settings.mobileHomeBaseValue = value;
 									await this.plugin.saveSettings();
 								});
@@ -695,14 +695,14 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		}
 
 		// Replace mobile new tab button (always available, not dependent on "Use different home base for new tabs")
-		mobileGroup.addSetting((setting: any) => {
+		mobileGroup.addSetting(setting => {
 			setting
 				.setName('Replace mobile new tab button')
 				.setDesc('Change the mobile new tab button to a home icon')
-				.addToggle((toggle: any) => {
+				.addToggle(toggle => {
 					toggle
 						.setValue(this.plugin.settings.replaceMobileNewTab)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.replaceMobileNewTab = value;
 							await this.plugin.saveSettings();
 							this.plugin.updateMobileButton();
@@ -713,14 +713,14 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		// Mobile new tab settings (only show if "Use different file for new tabs" is enabled)
 		if (this.plugin.settings.useDifferentFileForNewTab) {
 			// Separate mobile new tab toggle
-			mobileGroup.addSetting((setting: any) => {
+			mobileGroup.addSetting(setting => {
 				setting
 					.setName('Separate mobile new tab')
 					.setDesc('Use a different new tab file on mobile devices')
-					.addToggle((toggle: any) => {
+					.addToggle(toggle => {
 						toggle
 							.setValue(this.plugin.settings.newTabSeparateMobile)
-							.onChange(async (value: any) => {
+							.onChange(async value => {
 								this.plugin.settings.newTabSeparateMobile = value;
 								await this.plugin.saveSettings();
 
@@ -745,11 +745,11 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 				const mobileValue = this.plugin.settings.mobileNewTabValue || '';
 
 				// Mobile new tab type dropdown
-				mobileGroup.addSetting((setting: any) => {
+				mobileGroup.addSetting(setting => {
 					setting
 						.setName('Mobile new tab type')
 						.setDesc('What to open for new tabs on mobile')
-						.addDropdown((dropdown: any) => {
+						.addDropdown(dropdown => {
 							let pluginDisabled = false;
 
 							for (const type of Object.values(HomeBaseType)) {
@@ -773,7 +773,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 							dropdown
 								.setValue(mobileType)
-								.onChange(async (value: any) => {
+								.onChange(async value => {
 									this.plugin.settings.mobileNewTabType = value as HomeBaseType;
 									await this.plugin.saveSettings();
 
@@ -801,7 +801,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 
 				// Mobile value input (conditional on type)
 				if (!UNCHANGEABLE_TYPES.includes(mobileType)) {
-					mobileGroup.addSetting((setting: any) => {
+					mobileGroup.addSetting(setting => {
 						let desc = '';
 						let placeholder = '';
 
@@ -825,7 +825,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 									mobileType === HomeBaseType.RandomFolder ? 'Mobile new tab folder' :
 										mobileType === HomeBaseType.Journal ? 'Mobile new tab journal' : 'Mobile new tab value')
 							.setDesc(desc)
-							.addText((text: any) => {
+							.addText(text => {
 								if (mobileType === HomeBaseType.File) {
 									new FilePathSuggest(this.app, text.inputEl);
 								} else if (mobileType === HomeBaseType.Workspace) {
@@ -837,7 +837,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 								text
 									.setPlaceholder(placeholder)
 									.setValue(mobileValue || '')
-									.onChange(async (value: any) => {
+									.onChange(async value => {
 										this.plugin.settings.mobileNewTabValue = value;
 										await this.plugin.saveSettings();
 									});
@@ -850,7 +850,7 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		// Automation Settings
 		const automationGroup = new SettingGroup(containerEl).setHeading('Automation');
 
-		automationGroup.addSetting((setting: any) => {
+		automationGroup.addSetting(setting => {
 			const commandId = this.plugin.settings.commandOnOpen;
 			const command = commandId ? getCommandById(this.app, commandId) : undefined;
 			const displayValue = command ? command.name : commandId;
@@ -858,19 +858,19 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 			setting
 				.setName('Command on open')
 				.setDesc('Run an Obsidian command when opening home base')
-				.addText((text: any) => {
+				.addText(text => {
 					// Add command suggester
 					new CommandSuggest(this.app, text.inputEl);
 
 					text
 						.setPlaceholder('Search for a command...')
 						.setValue(displayValue || '')
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.commandOnOpen = value;
 							await this.plugin.saveSettings();
 						});
 				})
-				.addExtraButton((btn: any) => {
+				.addExtraButton(btn => {
 					btn
 						.setIcon('x')
 						.setTooltip('Clear command')
@@ -896,14 +896,14 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 				});
 		});
 
-		automationGroup.addSetting((setting: any) => {
+		automationGroup.addSetting(setting => {
 			setting
 				.setName('Wait for git sync')
 				.setDesc('Wait before creating periodic or journal notes to allow git sync to finish pulling existing notes. Only applies when a note doesn\'t already exist.')
-				.addToggle((toggle: any) => {
+				.addToggle(toggle => {
 					toggle
 						.setValue(this.plugin.settings.waitForGitSync)
-						.onChange(async (value: any) => {
+						.onChange(async value => {
 							this.plugin.settings.waitForGitSync = value;
 							await this.plugin.saveSettings();
 							this.display(); // Re-render to show/hide timeout setting
@@ -912,16 +912,16 @@ export class HomeBaseSettingTab extends PluginSettingTab {
 		});
 
 		if (this.plugin.settings.waitForGitSync) {
-			automationGroup.addSetting((setting: any) => {
+			automationGroup.addSetting(setting => {
 				setting
 					.setName('Git sync timeout (seconds)')
 					.setDesc('How long to wait for git sync to finish before creating a new note')
-					.addText((text: any) => {
+					.addText(text => {
 						text.inputEl.type = 'number';
 						text
 							.setPlaceholder('3')
 							.setValue(this.plugin.settings.gitSyncTimeout?.toString() || '3')
-							.onChange(async (value: any) => {
+							.onChange(async value => {
 								const numValue = parseInt(value);
 								if (!isNaN(numValue) && numValue >= 0) {
 									this.plugin.settings.gitSyncTimeout = numValue;

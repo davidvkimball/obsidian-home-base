@@ -132,7 +132,7 @@ export class StickyTabService {
 		setIcon(this.stickyIconEl, iconName);
 
 		// Add click handler
-		this.stickyIconEl.addEventListener('click', (e) => {
+		this.stickyIconEl.addEventListener('click', (e: any) => {
 			e.preventDefault();
 			e.stopPropagation();
 
@@ -148,7 +148,7 @@ export class StickyTabService {
 		});
 
 		// Add context menu for changing icon and closing home base
-		this.stickyIconEl.addEventListener('contextmenu', (e) => {
+		this.stickyIconEl.addEventListener('contextmenu', (e: any) => {
 			e.preventDefault();
 			e.stopPropagation();
 
@@ -536,7 +536,7 @@ export class StickyTabService {
 
 		// Also clean up any orphaned icons in all windows
 		const cleanupOrphans = (doc: Document) => {
-			doc.querySelectorAll(`.${STICKY_ICON_CLASS}`).forEach(el => {
+			doc.querySelectorAll(`.${STICKY_ICON_CLASS}`).forEach((el: any) => {
 				const stickyEl = el as StickyIconElement;
 				if (stickyEl._checkInterval) {
 					clearInterval(stickyEl._checkInterval);

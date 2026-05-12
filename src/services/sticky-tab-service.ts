@@ -371,12 +371,19 @@ export class StickyTabService {
 								if (tabHeader && tabHeader.parentElement) {
 									const parent = tabHeader.parentElement;
 									if (parent && parent.classList.contains('workspace-tab-header-container-inner')) {
-										const tabHeaderExtended = tabHeader as TabHeaderElement;
-										// Only remove if not already removed
-										if (parent.contains(tabHeader)) {
-											tabHeaderExtended._homeBaseParent = parent;
-											tabHeaderExtended._homeBaseNextSibling = tabHeader.nextSibling;
-											tabHeader.remove();
+										// Only remove the ghost tab header if it's in the primary tab container
+										// This prevents "ghost tabs" in split panes or new windows
+										const mainWorkspaceDoc = document.querySelector('.workspace-split.mod-vertical.mod-root');
+										const primaryTabContainer = mainWorkspaceDoc ? mainWorkspaceDoc.querySelector('.workspace-tab-header-container-inner') : null;
+
+										if (parent === primaryTabContainer) {
+											const tabHeaderExtended = tabHeader as TabHeaderElement;
+											// Only remove if not already removed
+											if (parent.contains(tabHeader)) {
+												tabHeaderExtended._homeBaseParent = parent;
+												tabHeaderExtended._homeBaseNextSibling = tabHeader.nextSibling;
+												tabHeader.remove();
+											}
 										}
 									}
 								}
@@ -742,7 +749,13 @@ export class StickyTabService {
 					if (this.plugin.homeService.isGhostLeaf(leaf)) {
 						const tabHeader = this.getTabHeaderForLeaf(leaf);
 						if (tabHeader && tabHeader.parentElement) {
-							ghostTabHeadersToRemove.push({ tabHeader, leaf });
+							// Find the primary tab container where the sticky icon lives
+							const mainWorkspaceDoc = document.querySelector('.workspace-split.mod-vertical.mod-root');
+							const primaryTabContainer = mainWorkspaceDoc ? mainWorkspaceDoc.querySelector('.workspace-tab-header-container-inner') : null;
+
+							if (tabHeader.parentElement === primaryTabContainer) {
+								ghostTabHeadersToRemove.push({ tabHeader, leaf });
+							}
 						}
 					}
 				}
@@ -799,8 +812,16 @@ export class StickyTabService {
 						const tabHeaderExtended = tabHeader as TabHeaderElement;
 						const isRemoved = tabHeaderExtended._homeBaseParent && !tabHeaderExtended._homeBaseParent.contains(tabHeader);
 
-						if (!isGhostTab) {
-							// Not a ghost tab - restore if it was removed
+						// Determine if this tab is in the primary container
+						const mainWorkspaceDoc = document.querySelector('.workspace-split.mod-vertical.mod-root');
+						const primaryTabContainer = mainWorkspaceDoc ? mainWorkspaceDoc.querySelector('.workspace-tab-header-container-inner') : null;
+						
+						// The container it is in now, or the one it was removed from
+						const currentOrPreviousParent = tabHeader.parentElement || tabHeaderExtended._homeBaseParent;
+						const isGhostInPrimary = isGhostTab && currentOrPreviousParent === primaryTabContainer;
+
+						if (!isGhostInPrimary) {
+							// Not a ghost tab in primary container - restore if it was removed
 							if (isRemoved) {
 								const parent = tabHeaderExtended._homeBaseParent;
 								const nextSibling = tabHeaderExtended._homeBaseNextSibling;

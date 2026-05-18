@@ -341,6 +341,6 @@ export function requiresFile(type: HomeBaseType): boolean {
  * Helper to wait for a specified duration
  */
 function delay(ms: number): Promise<void> {
-	return new Promise(resolve => setTimeout(resolve, ms));
+	return new Promise(resolve => activeWindow.setTimeout(resolve, ms));
 }
 

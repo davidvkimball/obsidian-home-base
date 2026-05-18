@@ -54,6 +54,9 @@ export default class HomeBasePlugin extends Plugin {
 	stickyTabService!: StickyTabService;
 	mobileButtonService!: MobileButtonService;
 
+	// Title Observer for fixing OS window title
+	private titleObserver: MutationObserver | null = null;
+
 	// Release notes tracking
 	private newRelease: boolean = false;
 
@@ -94,6 +97,31 @@ export default class HomeBasePlugin extends Plugin {
 
 		// Add settings tab
 		this.addSettingTab(new HomeBaseSettingTab(this.app, this));
+
+		// Setup observer to fix OS window title for ghost tabs
+		// Obsidian uses the DOM tab header to determine the window title.
+		// Since we remove the ghost tab header from the DOM to prevent
+		// flashing, Obsidian's internal updater falls back to "New tab".
+		// We intercept changes to the <title> tag and correct them instantly.
+		const titleEl = window.document.querySelector('title');
+		if (titleEl) {
+			this.titleObserver = new MutationObserver(() => {
+				const activeLeaf = this.app.workspace.getMostRecentLeaf();
+				if (activeLeaf && this.homeService.isGhostLeaf(activeLeaf)) {
+					const title = window.document.title;
+					if (title.startsWith('New tab') || title.startsWith('Empty')) {
+						const viewTitle = activeLeaf.view?.getDisplayText() || 'Home';
+						if (viewTitle !== 'New tab' && viewTitle !== 'Empty') {
+							// Temporarily disconnect to prevent infinite loops
+							this.titleObserver?.disconnect();
+							window.document.title = title.replace(/^New tab|^Empty/, viewTitle);
+							this.titleObserver?.observe(titleEl, { childList: true });
+						}
+					}
+				}
+			});
+			this.titleObserver.observe(titleEl, { childList: true });
+		}
 
 		// Wait for layout to be ready
 		this.app.workspace.onLayoutReady(() => {
@@ -186,6 +214,12 @@ export default class HomeBasePlugin extends Plugin {
 
 		// Unpatch opening behavior
 		this.unpatchOpeningBehavior();
+
+		// Clean up title observer
+		if (this.titleObserver) {
+			this.titleObserver.disconnect();
+			this.titleObserver = null;
+		}
 
 		// Clean up services
 		this.stickyTabService.remove();

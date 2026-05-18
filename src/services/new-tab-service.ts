@@ -84,7 +84,7 @@ export class NewTabService {
 		// Wait a bit for Obsidian to finish restoring the workspace
 		// This ensures all tabs are loaded before we try to close them
 		// Need longer delay to ensure workspace is fully restored
-		await new Promise(resolve => setTimeout(resolve, STARTUP_RESTORE_DELAY));
+		await new Promise(resolve => activeWindow.setTimeout(resolve, STARTUP_RESTORE_DELAY));
 
 		// If openMode is replace-all, close ALL tabs first, then open home base
 		// This should ONLY happen on startup, not when manually opening
@@ -120,7 +120,7 @@ export class NewTabService {
 			// Close ALL tabs - don't try to keep any, just close everything (except release notes if applicable)
 			await this.plugin.homeService.closeAllLeavesExcept(exceptLeaf);
 			// Wait longer to ensure all detachments are processed
-			await new Promise(resolve => setTimeout(resolve, DETACH_SETTLE_DELAY));
+			await new Promise(resolve => activeWindow.setTimeout(resolve, DETACH_SETTLE_DELAY));
 		}
 
 		// On startup, use ghost tab if sticky icon is enabled, otherwise use normal openHomeBase
@@ -146,13 +146,13 @@ export class NewTabService {
 	private isSettingsModalOpen(): boolean {
 		// Check for settings modal by looking for the modal container
 		// Try multiple selectors to be more robust
-		const settingsModal = document.querySelector('.modal-container.mod-settings') ||
-			document.querySelector('.modal.mod-settings') ||
-			document.querySelector('.vertical-tab-content');
+		const settingsModal = activeDocument.querySelector('.modal-container.mod-settings') ||
+			activeDocument.querySelector('.modal.mod-settings') ||
+			activeDocument.querySelector('.vertical-tab-content');
 
 		// Also check if any modal is open and contains settings content
 		if (!settingsModal) {
-			const allModals = document.querySelectorAll('.modal-container');
+			const allModals = activeDocument.querySelectorAll('.modal-container');
 			for (const modal of Array.from(allModals)) {
 				if (modal.querySelector('.vertical-tab-content') ||
 					modal.querySelector('.settings-content') ||
@@ -296,7 +296,7 @@ export class NewTabService {
 	 */
 	private isOnlyTab(leaf: WorkspaceLeaf): boolean {
 		let tabCount = 0;
-		this.app.workspace.iterateRootLeaves((l) => {
+		this.app.workspace.iterateRootLeaves(() => {
 			tabCount++;
 		});
 
@@ -327,7 +327,7 @@ export class NewTabService {
 		}
 
 		// Small delay to handle race conditions with other plugins
-		await new Promise(resolve => setTimeout(resolve, PLUGIN_RACE_DELAY));
+		await new Promise(resolve => activeWindow.setTimeout(resolve, PLUGIN_RACE_DELAY));
 
 		// If this is for new tab replacement, check again after delay
 		if (!isAllTabsClosed) {

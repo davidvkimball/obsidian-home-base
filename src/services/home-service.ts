@@ -119,7 +119,7 @@ export class HomeBaseService {
 				if (viewState.pinned !== true) {
 					void activeLeaf.detach();
 					// Wait a bit for detachment
-					await new Promise(resolve => setTimeout(resolve, DETACH_DELAY));
+					await new Promise(resolve => activeWindow.setTimeout(resolve, DETACH_DELAY));
 				}
 			}
 		}
@@ -172,7 +172,7 @@ export class HomeBaseService {
 		}
 
 		workspacePlugin.instance.loadWorkspace(workspaceName);
-		await new Promise(resolve => setTimeout(resolve, DETACH_DELAY));
+		await new Promise(resolve => activeWindow.setTimeout(resolve, DETACH_DELAY));
 		return true;
 	}
 
@@ -443,7 +443,7 @@ export class HomeBaseService {
 		const commandId = this.plugin.settings.commandOnOpen;
 		if (commandId) {
 			// Small delay to ensure the view is ready
-			setTimeout(() => {
+			activeWindow.setTimeout(() => {
 				executeCommand(this.app, commandId);
 			}, 100);
 		}
@@ -483,7 +483,7 @@ export class HomeBaseService {
 	 * Ghost tab is identified by being in our internal ghostLeaves set
 	 * Only returns existing ghost tabs, doesn't create new ones
 	 */
-	findGhostTab(file?: TFile, isRandom: boolean = false): WorkspaceLeaf | null {
+	findGhostTab(file?: TFile, _isRandom: boolean = false): WorkspaceLeaf | null {
 		if (!file) return null;
 		const homeBasePath = file.path;
 
@@ -544,7 +544,7 @@ export class HomeBaseService {
 			const newLeaf = this.app.workspace.getLeaf('tab');
 			if (newLeaf) {
 				await newLeaf.setViewState({ type: 'graph', state: {} });
-				await new Promise(resolve => setTimeout(resolve, GRAPH_INIT_DELAY));
+				await new Promise(resolve => activeWindow.setTimeout(resolve, GRAPH_INIT_DELAY));
 
 				this.ghostLeaves.add(newLeaf);
 				newLeaf.setPinned(true);
@@ -555,7 +555,7 @@ export class HomeBaseService {
 
 			// Fallback to command
 			await this.openGraph();
-			await new Promise(resolve => setTimeout(resolve, GRAPH_COMMAND_FALLBACK_DELAY));
+			await new Promise(resolve => activeWindow.setTimeout(resolve, GRAPH_COMMAND_FALLBACK_DELAY));
 			ghostTab = this.findGraphGhostTab();
 			if (ghostTab) {
 				this.ghostLeaves.add(ghostTab);
@@ -619,7 +619,7 @@ export class HomeBaseService {
 			file: file.path,
 			ghostTabFound: !!ghostTab,
 			isRandom: isRandom,
-			zenMode: document.body.classList.contains('zenmode-active')
+			zenMode: window.document.body.classList.contains('zenmode-active')
 		});
 
 		if (ghostTab) {
@@ -651,7 +651,7 @@ export class HomeBaseService {
 
 		// Mark the tab header immediately after pinning (for auto-hide tab counting)
 		// Use a small delay to ensure the tab header exists
-		setTimeout(() => {
+		activeWindow.setTimeout(() => {
 			this.plugin.stickyTabService.updateTabHeaders();
 		}, 50);
 
@@ -783,7 +783,7 @@ export class HomeBaseService {
 		}
 
 		// Wait for detachments to complete
-		await new Promise(resolve => setTimeout(resolve, 200));
+		await new Promise(resolve => activeWindow.setTimeout(resolve, 200));
 	}
 
 	/**
@@ -857,13 +857,13 @@ export class HomeBaseService {
 	private isSettingsModalOpen(): boolean {
 		// Check for settings modal by looking for the modal container
 		// Try multiple selectors to be more robust
-		const settingsModal = document.querySelector('.modal-container.mod-settings') ||
-			document.querySelector('.modal.mod-settings') ||
-			document.querySelector('.vertical-tab-content');
+		const settingsModal = window.document.querySelector('.modal-container.mod-settings') ||
+			window.document.querySelector('.modal.mod-settings') ||
+			window.document.querySelector('.vertical-tab-content');
 
 		// Also check if any modal is open and contains settings content
 		if (!settingsModal) {
-			const allModals = document.querySelectorAll('.modal-container');
+			const allModals = window.document.querySelectorAll('.modal-container');
 			for (const modal of Array.from(allModals)) {
 				if (modal.querySelector('.vertical-tab-content') ||
 					modal.querySelector('.settings-content') ||

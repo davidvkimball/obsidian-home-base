@@ -43,7 +43,7 @@ export class CommandSuggest extends AbstractInputSuggest<Command> {
 	}
 
 	renderSuggestion(command: Command, el: HTMLElement): void {
-		el.createEl('div', { 
+		el.createDiv({ 
 			text: command.name,
 			cls: 'suggestion-title'
 		});

@@ -60,14 +60,14 @@ export class FilePathSuggest extends AbstractInputSuggest<TFile> {
 		el.addClass('home-base-suggestion-item');
 
 		// Show file name prominently
-		const titleEl = el.createEl('div', {
+		const titleEl = el.createDiv({
 			cls: 'suggestion-title'
 		});
-		titleEl.createEl('span', { text: file.basename });
+		titleEl.createSpan({ text: file.basename });
 
 		// Show file type indicator next to title
 		if (file.extension !== 'md') {
-			titleEl.createEl('span', {
+			titleEl.createSpan({
 				text: file.extension.toUpperCase(),
 				cls: 'suggestion-flair'
 			});
@@ -75,7 +75,7 @@ export class FilePathSuggest extends AbstractInputSuggest<TFile> {
 
 		// Show path in smaller text if different from basename
 		if (file.parent && file.parent.path !== '/') {
-			el.createEl('div', {
+			el.createDiv({
 				text: file.parent.path,
 				cls: 'suggestion-note'
 			});
@@ -117,7 +117,7 @@ export class FolderSuggest extends AbstractInputSuggest<TFolder> {
 	}
 
 	renderSuggestion(folder: TFolder, el: HTMLElement): void {
-		el.createEl('div', { text: folder.path || '/' });
+		el.createDiv({ text: folder.path || '/' });
 	}
 
 	selectSuggestion(folder: TFolder): void {
@@ -156,7 +156,7 @@ export class WorkspaceSuggest extends AbstractInputSuggest<string> {
 	}
 
 	renderSuggestion(workspace: string, el: HTMLElement): void {
-		el.createEl('div', { text: workspace });
+		el.createDiv({ text: workspace });
 	}
 
 	selectSuggestion(workspace: string): void {

@@ -39,13 +39,13 @@ export class MobileButtonService {
 	 * Apply the mobile button replacement
 	 */
 	private apply(): void {
-		document.body.classList.add(MOBILE_HOME_CLASS);
+		activeDocument.body.classList.add(MOBILE_HOME_CLASS);
 	}
 
 	/**
 	 * Remove the mobile button replacement
 	 */
 	remove(): void {
-		document.body.classList.remove(MOBILE_HOME_CLASS);
+		activeDocument.body.classList.remove(MOBILE_HOME_CLASS);
 	}
 }

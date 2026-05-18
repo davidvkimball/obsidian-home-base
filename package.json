@@ -5,7 +5,6 @@
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
-		"preinstall": "node scripts/npm-proxy.mjs",
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs build",
 		"lint": "node scripts/lint-wrapper.mjs",

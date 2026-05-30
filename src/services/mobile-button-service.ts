@@ -18,6 +18,15 @@ export class MobileButtonService {
 		this.plugin = plugin;
 	}
 
+	// The main app window's document. Obsidian 1.13.0+ opens Settings in a
+	// separate window, so `activeDocument` (the focused window) can point at the
+	// Settings window while a setting is being changed. This feature is mobile-
+	// only (where there is no separate Settings window), but using the main
+	// window's document keeps it correct under desktop "emulate mobile" too.
+	private get doc(): Document {
+		return this.plugin.app.workspace.containerEl.ownerDocument;
+	}
+
 	/**
 	 * Update the mobile button based on settings
 	 */
@@ -39,13 +48,13 @@ export class MobileButtonService {
 	 * Apply the mobile button replacement
 	 */
 	private apply(): void {
-		activeDocument.body.classList.add(MOBILE_HOME_CLASS);
+		this.doc.body.classList.add(MOBILE_HOME_CLASS);
 	}
 
 	/**
 	 * Remove the mobile button replacement
 	 */
 	remove(): void {
-		activeDocument.body.classList.remove(MOBILE_HOME_CLASS);
+		this.doc.body.classList.remove(MOBILE_HOME_CLASS);
 	}
 }
